@@ -1,0 +1,1180 @@
+---
+openapi: 3.0.3
+info:
+  title: Travels and destinations API
+  version: 0.1.0
+  description: 'FUTURE CONTRACT: not implemented by the Phase 1 skeleton. Dependency
+    unavailable or work could not be durably accepted.'
+servers:
+- url: http://localhost:8080
+  description: Loopback development gateway; deployment requires HTTPS.
+security:
+- adminBearer: []
+x-required-role: ADMIN
+paths:
+  "/api/destinations":
+    get:
+      operationId: listDestinations
+      summary: List destination records
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/DestinationPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      description: Order by createdAt ascending then UUID ascending. Includes pending
+        and failed records.
+    post:
+      operationId: createDestination
+      summary: Create destination
+      responses:
+        '201':
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Destination"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/DestinationCreate"
+  "/api/destinations/{destinationId}":
+    get:
+      operationId: getDestination
+      summary: Read destination
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Destination"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: destinationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateDestination
+      summary: Update destination
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Destination"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/DestinationPatch"
+      parameters:
+      - name: destinationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      operationId: deleteDestination
+      summary: Delete destination
+      responses:
+        '204':
+          description: Resource deleted or session revoked.
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: destinationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: 409 DESTINATION_IN_USE while any stop references the destination;
+        otherwise 204.
+  "/api/travels":
+    get:
+      operationId: listTravels
+      summary: List travel records
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TravelPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      description: Order by createdAt ascending then UUID ascending. Includes pending
+        and failed records.
+    post:
+      operationId: createTravel
+      summary: Create travel
+      responses:
+        '201':
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Travel"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TravelWrite"
+      description: Require non-reversed dates and at least one destination stop. All
+        component IDs must be omitted for creation. Duration is inclusive calendar
+        days. Explicit empty activity/accommodation/transport arrays are allowed;
+        omission is invalid.
+  "/api/travels/{travelId}":
+    get:
+      operationId: getTravel
+      summary: Read travel
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Travel"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: travelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: updateTravel
+      summary: Update travel
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Travel"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TravelWrite"
+      parameters:
+      - name: travelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: Replace title, dates and complete itinerary atomically. Omitted
+        existing components are deleted; supplied component IDs must already belong
+        to this travel. Participation is unchanged and managed by its own routes.
+    delete:
+      operationId: deleteTravel
+      summary: Delete travel
+      responses:
+        '204':
+          description: Resource deleted or session revoked.
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: travelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: Delete owned stops, activities, accommodations, transport and participation
+        in one transaction. Preserve shared destinations.
+  "/api/travels/{travelId}/itinerary":
+    get:
+      operationId: getItinerary
+      summary: Read the complete itinerary
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Itinerary"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: travelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: Create new components by omitting id; retain/update existing components
+        by id; delete by omission on PUT. Positions must be contiguous and match array
+        order. Transport input positions resolve to owned stop UUIDs. All dates must
+        fit their stop/travel period.
+    put:
+      operationId: replaceItinerary
+      summary: Replace the complete itinerary
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Itinerary"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ItineraryWrite"
+      parameters:
+      - name: travelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: Create new components by omitting id; retain/update existing components
+        by id; delete by omission on PUT. Positions must be contiguous and match array
+        order. Transport input positions resolve to owned stop UUIDs. All dates must
+        fit their stop/travel period.
+  "/api/travels/{travelId}/participants":
+    get:
+      operationId: listParticipations
+      summary: List participation records
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ParticipationPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      - name: travelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: Order by createdAt ascending then UUID ascending. Includes pending
+        and failed records.
+    post:
+      operationId: addParticipant
+      summary: Add a traveler to a travel
+      responses:
+        '201':
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Participation"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ParticipationCreate"
+      parameters:
+      - name: travelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: Validate traveler belongs to user and both are active. Duplicate
+        travel/traveler pair returns 409. References are immutable; remove and add
+        to change participation.
+  "/api/travels/{travelId}/participants/{participationId}":
+    get:
+      operationId: getParticipant
+      summary: Read a participation
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Participation"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: travelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: participationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      operationId: removeParticipant
+      summary: Remove a participation
+      responses:
+        '204':
+          description: Resource deleted or session revoked.
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: travelId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: participationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+components:
+  securitySchemes:
+    adminBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Requires ADMIN at both gateway and service. Validate signature,
+        issuer, audience, expiry and revocation.
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+  responses:
+    BadRequest:
+      description: Invalid request or fields.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing, invalid, expired or revoked authentication.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          description: Bearer challenge for access-token endpoints.
+    Forbidden:
+      description: Valid identity lacks ADMIN, or CSRF validation failed.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    NotFound:
+      description: Resource or referenced resource not found.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Conflict:
+      description: Uniqueness, lifecycle, ownership, last-admin, in-use or idempotency
+        conflict.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unavailable:
+      description: Dependency unavailable or work could not be durably accepted.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+          description: Suggested delay in seconds, if known.
+  schemas:
+    FieldError:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+      required:
+      - field
+      - code
+      - message
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: The request contains invalid fields.
+        fieldErrors:
+          type: array
+          items:
+            "$ref": "#/components/schemas/FieldError"
+        traceId:
+          type: string
+          example: 4bf92f3577b34da6a3ce929d0e0e4736
+      required:
+      - code
+      - message
+      - fieldErrors
+      - traceId
+    DestinationCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        countryCode:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          description: ISO 3166-1 alpha-2 country code.
+        description:
+          type: string
+          maxLength: 2000
+      required:
+      - name
+      - countryCode
+    DestinationPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        countryCode:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          description: ISO 3166-1 alpha-2 country code.
+        description:
+          type: string
+          maxLength: 2000
+      minProperties: 1
+    Destination:
+      type: object
+      additionalProperties: false
+      properties:
+        destinationId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        countryCode:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          description: ISO 3166-1 alpha-2 country code.
+        description:
+          type: string
+          maxLength: 2000
+      required:
+      - destinationId
+      - createdAt
+      - updatedAt
+      - name
+      - countryCode
+    ActivityWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Existing owned ID on replacement; omit for a new component.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+          maxLength: 2000
+      required:
+      - name
+      - date
+    Activity:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+          maxLength: 2000
+      required:
+      - id
+      - name
+      - date
+    AccommodationWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Existing owned ID on replacement; omit for a new component.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        address:
+          type: string
+          minLength: 1
+          maxLength: 500
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+      required:
+      - name
+      - address
+      - checkIn
+      - checkOut
+    Accommodation:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        address:
+          type: string
+          minLength: 1
+          maxLength: 500
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+      required:
+      - id
+      - name
+      - address
+      - checkIn
+      - checkOut
+    StopWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Existing owned stop ID; omit for a new stop.
+        destinationId:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+        arrivalDate:
+          type: string
+          format: date
+        departureDate:
+          type: string
+          format: date
+        activities:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ActivityWrite"
+        accommodations:
+          type: array
+          items:
+            "$ref": "#/components/schemas/AccommodationWrite"
+      required:
+      - destinationId
+      - position
+      - arrivalDate
+      - departureDate
+      - activities
+      - accommodations
+    Stop:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        destinationId:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+        arrivalDate:
+          type: string
+          format: date
+        departureDate:
+          type: string
+          format: date
+        activities:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Activity"
+        accommodations:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Accommodation"
+      required:
+      - id
+      - destinationId
+      - position
+      - arrivalDate
+      - departureDate
+      - activities
+      - accommodations
+    TransportWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Existing owned transport ID; omit for a new component.
+        fromStopPosition:
+          type: integer
+          minimum: 0
+        toStopPosition:
+          type: integer
+          minimum: 0
+        mode:
+          type: string
+          enum:
+          - FLIGHT
+          - TRAIN
+          - BUS
+          - CAR
+          - FERRY
+          - WALK
+          - OTHER
+        departureAt:
+          type: string
+          format: date-time
+        arrivalAt:
+          type: string
+          format: date-time
+        details:
+          type: string
+          maxLength: 1000
+      required:
+      - fromStopPosition
+      - toStopPosition
+      - mode
+      - departureAt
+      - arrivalAt
+    Transport:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        fromStopId:
+          type: string
+          format: uuid
+        toStopId:
+          type: string
+          format: uuid
+        mode:
+          type: string
+          enum:
+          - FLIGHT
+          - TRAIN
+          - BUS
+          - CAR
+          - FERRY
+          - WALK
+          - OTHER
+        departureAt:
+          type: string
+          format: date-time
+        arrivalAt:
+          type: string
+          format: date-time
+        details:
+          type: string
+          maxLength: 1000
+      required:
+      - id
+      - fromStopId
+      - toStopId
+      - mode
+      - departureAt
+      - arrivalAt
+    ItineraryWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        stops:
+          type: array
+          items:
+            "$ref": "#/components/schemas/StopWrite"
+          minItems: 1
+        transportation:
+          type: array
+          items:
+            "$ref": "#/components/schemas/TransportWrite"
+      required:
+      - stops
+      - transportation
+    Itinerary:
+      type: object
+      additionalProperties: false
+      properties:
+        stops:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Stop"
+          minItems: 1
+        transportation:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Transport"
+      required:
+      - stops
+      - transportation
+    ParticipationCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+          format: uuid
+        travelerId:
+          type: string
+          format: uuid
+      required:
+      - userId
+      - travelerId
+    Participation:
+      type: object
+      additionalProperties: false
+      properties:
+        participationId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        userId:
+          type: string
+          format: uuid
+        travelerId:
+          type: string
+          format: uuid
+      required:
+      - participationId
+      - createdAt
+      - updatedAt
+      - userId
+      - travelerId
+    TravelWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        itinerary:
+          "$ref": "#/components/schemas/ItineraryWrite"
+      required:
+      - title
+      - startDate
+      - endDate
+      - itinerary
+    Travel:
+      type: object
+      additionalProperties: false
+      properties:
+        travelId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        durationDays:
+          type: integer
+          minimum: 1
+          readOnly: true
+        itinerary:
+          "$ref": "#/components/schemas/Itinerary"
+      required:
+      - travelId
+      - createdAt
+      - updatedAt
+      - title
+      - startDate
+      - endDate
+      - durationDays
+      - itinerary
+    DestinationPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Destination"
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+    TravelPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Travel"
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+    ParticipationPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Participation"
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages

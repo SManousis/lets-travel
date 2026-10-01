@@ -1,0 +1,13 @@
+# Tracing and operational visibility
+
+The gateway accepts a safe `X-Request-ID` or creates one, returns it to the caller, and forwards it to downstream services. The request filters log JSON with `timestamp`, `service`, `instanceId`, `severity`, `traceId` (the request ID), `operation` (method and path), and HTTP `status`. They omit request bodies and authorization headers. `instanceId` is resolved once per process from a safe `SERVICE_INSTANCE_ID` value or a generated UUID, so separate processes on one host remain distinguishable. The value is limited to letters, digits, dot, underscore, and hyphen, with a maximum length of 64.
+
+The optional `compose.observability.yml` overlay attaches the collector to the same private `backend` network as the services and publishes no collector ports. `otel-collector.yml` only accepts OTLP gRPC/HTTP and writes received records to its debug exporter. The applications currently emit request logs to standard output; they are **not configured to export logs or spans to OTLP**. The collector has no durable store or authenticated trace search UI. Running the collector alone therefore does not establish end-to-end collection or retention.
+
+To finish deployed observability, configure an application exporter or a log agent to send records to the collector, replace the debug exporter with a retained backend, protect collector ingestion and the query UI with authenticated TLS, and verify ingestion and searches across gateway and service requests. Keep management listeners on the private network. Until those steps are deployed and checked, use the correlated service logs for request tracing.
+
+Verification: send a request with `X-Request-ID: audit-trace-1`, inspect gateway and service logs for the same `traceId` and a stable `instanceId` per process, then send an invalid downstream request and confirm the same request ID appears with the controlled error status. A separately configured OTLP exporter and trace backend need their own ingestion and search check.
+
+## Recorded local check — 2026-10-01
+
+Before the `instanceId` addition, an authenticated user read with `X-Request-ID: audit-final-valid-20261001` returned 200. The same ID appeared in the gateway, auth-service token-validation, and user-service JSON logs. An invalid bearer token returned 401 with its supplied request ID in the response and gateway log. None of the inspected trace lines contained a bearer token, access token, or password. Commands, isolated Compose conditions, and remaining limits are in [the runtime follow-up](runtime-verification-2026-10-01.md). A collector/OTLP export and deployed trace search were not checked.

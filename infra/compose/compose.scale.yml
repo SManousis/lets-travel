@@ -1,0 +1,6 @@
+services:
+  auth-service: { deploy: { replicas: 2 } }
+  user-service: { deploy: { replicas: 2 } }
+  travel-service: { deploy: { replicas: 2 } }
+  payment-service: { deploy: { replicas: 2 } }
+  api-gateway: { deploy: { replicas: 2 } }

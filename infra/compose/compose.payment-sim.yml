@@ -1,0 +1,32 @@
+services:
+  payment-simulator:
+    image: node:22-alpine
+    user: node
+    read_only: true
+    command: ["node", "/app/mock-providers.mjs"]
+    volumes:
+      - ../../scripts/sandbox/mock-providers.mjs:/app/mock-providers.mjs:ro
+    environment:
+      SIM_STRIPE_SECRET: ${STRIPE_SANDBOX_SECRET_KEY:?Synthetic Stripe credential required}
+      SIM_PAYPAL_CLIENT_ID: ${PAYPAL_SANDBOX_CLIENT_ID:?Synthetic PayPal client ID required}
+      SIM_PAYPAL_CLIENT_SECRET: ${PAYPAL_SANDBOX_CLIENT_SECRET:?Synthetic PayPal secret required}
+    networks: [backend]
+    expose: [8085]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8085/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  payment-service:
+    environment:
+      PAYMENT_SIMULATION_ENABLED: "true"
+      PAYMENT_SIMULATOR_BASE_URL: http://payment-simulator:8085
+    depends_on:
+      payment-simulator: { condition: service_healthy }
+
+  api-gateway:
+    ports: !override ["127.0.0.1:18080:8080"]
+
+  admin-ui:
+    ports: !override ["127.0.0.1:15173:8080"]

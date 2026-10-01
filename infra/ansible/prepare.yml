@@ -1,0 +1,98 @@
+---
+- name: Prepare a Linux host for Travel Plan releases
+  hosts: travel_plan
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Require a supported Debian-family distribution
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] in ['Debian', 'Ubuntu']
+          - ansible_facts['os_family'] == 'Debian'
+        fail_msg: This playbook provisions Docker on Debian or Ubuntu only.
+
+    - name: Install Docker repository prerequisites
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - python3-apt
+          - python3-requests
+        state: present
+        update_cache: true
+
+    - name: Inspect installed packages before changing Docker packages
+      ansible.builtin.package_facts:
+        manager: apt
+
+    - name: Require manual migration of conflicting Docker packages
+      ansible.builtin.assert:
+        that: item not in ansible_facts['packages']
+        fail_msg: >-
+          {{ item }} is installed. Migrate it using the Docker Engine installation
+          procedure before running this playbook; this playbook will not remove it.
+      loop:
+        - docker.io
+        - docker-compose
+        - docker-doc
+        - podman-docker
+        - containerd
+        - runc
+
+    - name: Create the apt keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Install the Docker repository signing key
+      ansible.builtin.get_url:
+        url: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg"
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+
+    - name: Read the target Debian package architecture
+      ansible.builtin.command: dpkg --print-architecture
+      register: docker_architecture
+      changed_when: false
+
+    - name: Configure the official Docker apt repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/docker.sources
+        mode: '0644'
+        content: |
+          Types: deb
+          URIs: https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}
+          Suites: {{ ansible_facts['distribution_release'] }}
+          Components: stable
+          Architectures: {{ docker_architecture.stdout }}
+          Signed-By: /etc/apt/keyrings/docker.asc
+
+    - name: Install Docker Engine and Compose plugin
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker Engine starts on boot
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Create the release directory
+      ansible.builtin.file:
+        path: /opt/travel-plan
+        state: directory
+        owner: root
+        group: root
+        mode: '0750'
+
+    - name: Confirm the Compose plugin is available
+      ansible.builtin.command: docker compose version
+      changed_when: false

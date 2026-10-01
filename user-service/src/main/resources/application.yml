@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: user-service
+  autoconfigure:
+    exclude: org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration,org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+auth:
+  service-url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8082}
+security:
+  token-secret: ${AUTH_TOKEN_SECRET:replace-with-at-least-32-random-characters}
+  internal-service-token: ${AUTH_INTERNAL_SERVICE_TOKEN:change-me-internal}
+services:
+  auth:
+    url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+  payment:
+    url: ${PAYMENT_SERVICE_URL:http://127.0.0.1:8084}
+  travel:
+    url: ${TRAVEL_SERVICE_URL:http://127.0.0.1:8083}
+management:
+  server:
+    address: ${MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${MANAGEMENT_PORT:9082}
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+---
+spring:
+  config:
+    activate:
+      on-profile: infra
+  autoconfigure:
+    exclude: []
+  datasource:
+    url: ${USERS_DB_URL:jdbc:postgresql://postgres:5432/travel_users}
+    username: ${USERS_DB_USER:users_app}
+    password: ${USERS_DB_PASSWORD:change-me-users}
+    hikari:
+      connection-timeout: 5000
+      initialization-fail-timeout: 30000
+  flyway:
+    locations: classpath:db/migration

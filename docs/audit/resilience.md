@@ -1,0 +1,3 @@
+# Resilience rehearsal
+
+Start a disposable stack and scale one business service that has no published host port, such as `user-service`, to two replicas. Send repeated authenticated reads through the gateway, then stop one instance and confirm the remaining healthy instance continues serving requests. Record instance IDs, request IDs, latency, error counts, and the exact replica count. The base Compose file publishes a fixed gateway host port, so its gateway cannot be scaled to two replicas without a separate ingress/port override; see the [manual testing guide](manual-testing-guide.md#8-replica-and-failure-checks). Do not claim database failover from this exercise; PostgreSQL and Neo4j remain single-container local databases until a replicated deployment is supplied.

@@ -1,0 +1,167 @@
+name: travel-plan
+
+services:
+  postgres:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-travelplan}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-change-me-local-only}
+      POSTGRES_DB: postgres
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-change-me-auth}
+      USERS_DB_PASSWORD: ${USERS_DB_PASSWORD:-change-me-users}
+      PAYMENTS_DB_PASSWORD: ${PAYMENTS_DB_PASSWORD:-change-me-payments}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  neo4j:
+    image: neo4j:2026.08.1-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-change-me-neo4j}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_default__listen__address: 0.0.0.0
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - ../neo4j/init:/var/lib/neo4j/import/init
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  auth-service:
+    build: ../../auth-service
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      MANAGEMENT_ADDRESS: 0.0.0.0
+      SPRING_PROFILES_ACTIVE: infra
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-change-me-auth}
+      AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-admin}
+      AUTH_INTERNAL_SERVICE_TOKEN: ${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backend]
+    expose: [8081, 9081]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9081/actuator/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  user-service:
+    build: ../../user-service
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      MANAGEMENT_ADDRESS: 0.0.0.0
+      SPRING_PROFILES_ACTIVE: infra
+      USERS_DB_PASSWORD: ${USERS_DB_PASSWORD:-change-me-users}
+      AUTH_TOKEN_SECRET: "${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}"
+      AUTH_INTERNAL_SERVICE_TOKEN: "${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}"
+      PAYMENT_SERVICE_URL: http://payment-service:8084
+      TRAVEL_SERVICE_URL: http://travel-service:8083
+      AUTH_SERVICE_URL: http://auth-service:8081
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backend]
+    expose: [8082, 9082]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9082/actuator/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  travel-service:
+    build: ../../travel-service
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      MANAGEMENT_ADDRESS: 0.0.0.0
+      SPRING_PROFILES_ACTIVE: infra
+      AUTH_TOKEN_SECRET: "${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}"
+      AUTH_INTERNAL_SERVICE_TOKEN: "${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}"
+      AUTH_SERVICE_URL: http://auth-service:8081
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-change-me-neo4j}
+    depends_on:
+      neo4j: { condition: service_healthy }
+    networks: [backend]
+    expose: [8083, 9083]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9083/actuator/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  payment-service:
+    build: ../../payment-service
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      MANAGEMENT_ADDRESS: 0.0.0.0
+      SPRING_PROFILES_ACTIVE: infra
+      PAYMENTS_DB_PASSWORD: ${PAYMENTS_DB_PASSWORD:-change-me-payments}
+      AUTH_TOKEN_SECRET: "${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}"
+      AUTH_INTERNAL_SERVICE_TOKEN: "${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}"
+      USER_SERVICE_URL: http://user-service:8082
+      AUTH_SERVICE_URL: http://auth-service:8081
+      STRIPE_SANDBOX_SECRET_KEY: ${STRIPE_SANDBOX_SECRET_KEY:-}
+      PAYPAL_SANDBOX_CLIENT_ID: ${PAYPAL_SANDBOX_CLIENT_ID:-}
+      PAYPAL_SANDBOX_CLIENT_SECRET: ${PAYPAL_SANDBOX_CLIENT_SECRET:-}
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backend]
+    expose: [8084, 9084]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9084/actuator/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  api-gateway:
+    build: ../../api-gateway
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      MANAGEMENT_ADDRESS: 0.0.0.0
+      AUTH_SERVICE_URL: http://auth-service:8081
+      USER_SERVICE_URL: http://user-service:8082
+      TRAVEL_SERVICE_URL: http://travel-service:8083
+      PAYMENT_SERVICE_URL: http://payment-service:8084
+      AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}
+      AUTH_INTERNAL_SERVICE_TOKEN: ${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}
+    depends_on:
+      auth-service: { condition: service_healthy }
+      user-service: { condition: service_healthy }
+      travel-service: { condition: service_healthy }
+      payment-service: { condition: service_healthy }
+    networks: [backend]
+    ports: ["127.0.0.1:8080:8080"]
+    expose: [9080]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9080/actuator/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  admin-ui:
+    build: ../../admin-ui
+    depends_on:
+      api-gateway: { condition: service_healthy }
+    networks: [backend]
+    ports: ["127.0.0.1:5173:8080"]
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  neo4j-data:
+  neo4j-logs:

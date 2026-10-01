@@ -1,0 +1,20 @@
+# Apply after compose.yml for deployments that pull published application images.
+services:
+  auth-service:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}/auth-service:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: !reset null
+  user-service:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}/user-service:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: !reset null
+  travel-service:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}/travel-service:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: !reset null
+  payment-service:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}/payment-service:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: !reset null
+  api-gateway:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}/api-gateway:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: !reset null
+  admin-ui:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}/admin-ui:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: !reset null

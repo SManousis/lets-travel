@@ -1,0 +1,211 @@
+---
+- name: Deploy an immutable Travel Plan release
+  hosts: travel_plan
+  become: true
+  vars:
+    app_dir: /opt/travel-plan
+    required_tls_files:
+      - dev-ca.crt
+      - gateway.crt
+      - gateway.key
+      - server.crt
+      - server.key
+      - vault.crt
+      - vault.key
+      - public.crt
+      - private.key
+      - trusted/dev-ca.crt
+    # Image users: postgres 999:999, vault 100:1000, neo4j 7474:7474.
+    service_tls:
+      - { dir: postgres, uid: 999, gid: 999, files: [server.crt, server.key] }
+      - { dir: vault, uid: 100, gid: 1000, files: [vault.crt, vault.key] }
+      - { dir: neo4j, uid: 7474, gid: 7474, files: [public.crt, private.key] }
+    release_secrets:
+      POSTGRES_SUPERUSER_PASSWORD: "{{ postgres_superuser_password | default(lookup('ansible.builtin.env', 'POSTGRES_SUPERUSER_PASSWORD'), true) }}"
+      AUTH_DB_PASSWORD: "{{ auth_db_password | default(lookup('ansible.builtin.env', 'AUTH_DB_PASSWORD'), true) }}"
+      USERS_DB_PASSWORD: "{{ users_db_password | default(lookup('ansible.builtin.env', 'USERS_DB_PASSWORD'), true) }}"
+      PAYMENTS_DB_PASSWORD: "{{ payments_db_password | default(lookup('ansible.builtin.env', 'PAYMENTS_DB_PASSWORD'), true) }}"
+      NEO4J_PASSWORD: "{{ neo4j_password | default(lookup('ansible.builtin.env', 'NEO4J_PASSWORD'), true) }}"
+      AUTH_TOKEN_SECRET: "{{ auth_token_secret | default(lookup('ansible.builtin.env', 'AUTH_TOKEN_SECRET'), true) }}"
+      ADMIN_USERNAME: "{{ admin_username | default(lookup('ansible.builtin.env', 'ADMIN_USERNAME'), true) }}"
+      ADMIN_PASSWORD: "{{ admin_password | default(lookup('ansible.builtin.env', 'ADMIN_PASSWORD'), true) }}"
+      AUTH_INTERNAL_SERVICE_TOKEN: "{{ auth_internal_service_token | default(lookup('ansible.builtin.env', 'AUTH_INTERNAL_SERVICE_TOKEN'), true) }}"
+    optional_release_secrets:
+      STRIPE_SANDBOX_SECRET_KEY: "{{ stripe_sandbox_secret_key | default(lookup('ansible.builtin.env', 'STRIPE_SANDBOX_SECRET_KEY'), true) }}"
+      PAYPAL_SANDBOX_CLIENT_ID: "{{ paypal_sandbox_client_id | default(lookup('ansible.builtin.env', 'PAYPAL_SANDBOX_CLIENT_ID'), true) }}"
+      PAYPAL_SANDBOX_CLIENT_SECRET: "{{ paypal_sandbox_client_secret | default(lookup('ansible.builtin.env', 'PAYPAL_SANDBOX_CLIENT_SECRET'), true) }}"
+  tasks:
+    - name: Validate release identity and registry input
+      ansible.builtin.assert:
+        that:
+          - release_tag is defined
+          - release_tag is match('^[0-9a-f]{40}$')
+          - image_prefix is defined
+          - image_prefix is match('^[a-zA-Z0-9._:/-]+$')
+          - registry_host is defined
+          - registry_host | length > 0
+        fail_msg: A full Git SHA, image prefix, and registry host are required.
+
+    - name: Require non-placeholder application secrets
+      ansible.builtin.assert:
+        that:
+          - item.value | length > 0
+          - >-
+            item.value not in ['change-me-local-only', 'change-me-auth',
+            'change-me-users', 'change-me-payments', 'change-me-neo4j',
+            'change-me-admin', 'change-me-internal',
+            'replace-with-at-least-32-random-characters']
+          - item.value is not search('[\x0a\x0d]')
+        fail_msg: "A required release secret is absent or a placeholder: {{ item.key }}"
+      loop: "{{ release_secrets | dict2items }}"
+      no_log: true
+
+    - name: Validate token signing secret length
+      ansible.builtin.assert:
+        that: release_secrets.AUTH_TOKEN_SECRET | length >= 32
+        fail_msg: AUTH_TOKEN_SECRET must be at least 32 characters.
+      no_log: true
+
+    - name: Reject line breaks in optional provider secrets
+      ansible.builtin.assert:
+        that: item.value is not search('[\x0a\x0d]')
+      loop: "{{ optional_release_secrets | dict2items }}"
+      no_log: true
+
+    - name: Check registry credentials
+      ansible.builtin.assert:
+        that:
+          - lookup('ansible.builtin.env', 'REGISTRY_USER') | length > 0
+          - lookup('ansible.builtin.env', 'REGISTRY_PASSWORD') | length > 0
+        fail_msg: REGISTRY_USER and REGISTRY_PASSWORD must be supplied by Jenkins credentials.
+      no_log: true
+
+    - name: Check target TLS files
+      ansible.builtin.stat:
+        path: "{{ app_dir }}/tls/certs/{{ item }}"
+      loop: "{{ required_tls_files }}"
+      register: tls_files
+
+    - name: Require provisioned TLS files
+      ansible.builtin.assert:
+        that: item.stat.exists
+        fail_msg: "Provision {{ item.item }} under {{ app_dir }}/tls/certs before deploying."
+      loop: "{{ tls_files.results }}"
+
+    - name: Create service-owned TLS directories
+      ansible.builtin.file:
+        path: "{{ app_dir }}/tls/certs/{{ item.dir }}"
+        state: directory
+        owner: "{{ item.uid }}"
+        group: "{{ item.gid }}"
+        mode: '0700'
+      loop: "{{ service_tls }}"
+      loop_control:
+        label: "{{ item.dir }}"
+
+    - name: Copy service-owned TLS material
+      ansible.builtin.copy:
+        src: "{{ app_dir }}/tls/certs/{{ item.1 }}"
+        dest: "{{ app_dir }}/tls/certs/{{ item.0.dir }}/{{ item.1 }}"
+        remote_src: true
+        owner: "{{ item.0.uid }}"
+        group: "{{ item.0.gid }}"
+        mode: '0600'
+      loop: "{{ service_tls | subelements('files') }}"
+      loop_control:
+        label: "{{ item.0.dir }}/{{ item.1 }}"
+
+    - name: Create release directories
+      ansible.builtin.file:
+        path: "{{ app_dir }}/{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - compose
+        - postgres/init
+        - neo4j/init
+        - proxy
+        - vault/config
+
+    - name: Copy Compose manifests
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../compose/"
+        dest: "{{ app_dir }}/compose/"
+        mode: preserve
+
+    - name: Copy PostgreSQL initialization scripts
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../postgres/init/"
+        dest: "{{ app_dir }}/postgres/init/"
+        mode: preserve
+
+    - name: Copy Neo4j initialization scripts
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../neo4j/init/"
+        dest: "{{ app_dir }}/neo4j/init/"
+        mode: preserve
+
+    - name: Copy TLS proxy configuration
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../proxy/nginx.conf"
+        dest: "{{ app_dir }}/proxy/nginx.conf"
+        mode: '0644'
+
+    - name: Copy Vault configuration
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../vault/config/"
+        dest: "{{ app_dir }}/vault/config/"
+        mode: preserve
+
+    - name: Render private release environment
+      ansible.builtin.template:
+        src: release.env.j2
+        dest: "{{ app_dir }}/.env"
+        mode: '0600'
+      no_log: true
+
+    - name: Authenticate target Docker client to the release registry
+      community.docker.docker_login:
+        registry_url: "{{ registry_host }}"
+        username: "{{ lookup('ansible.builtin.env', 'REGISTRY_USER') }}"
+        password: "{{ lookup('ansible.builtin.env', 'REGISTRY_PASSWORD') }}"
+      no_log: true
+
+    - name: Pull and reconcile the exact published release
+      community.docker.docker_compose_v2:
+        # Relative bind mounts in the manifests (../tls/certs, ../proxy, ...) resolve
+        # against the project directory, so it must be the compose directory itself.
+        project_src: "{{ app_dir }}/compose"
+        files:
+          - compose.yml
+          - compose.release.yml
+          - compose.secure.yml
+        env_files:
+          - "{{ app_dir }}/.env"
+        state: present
+        pull: always
+        build: never
+        wait: true
+        wait_timeout: 180
+
+    - name: Wait for HTTPS dashboard readiness
+      ansible.builtin.uri:
+        url: "https://{{ deployment_health_hostname | default('localhost') }}:{{ deployment_health_port | default(8443) }}/health"
+        ca_path: "{{ deployment_ca_path | default(app_dir ~ '/tls/certs/dev-ca.crt') }}"
+        validate_certs: true
+        status_code: 200
+      register: dashboard_health
+      retries: 18
+      delay: 5
+      until: dashboard_health.status == 200
+
+    - name: Confirm the HTTPS API reaches the gateway
+      ansible.builtin.uri:
+        url: "https://{{ deployment_health_hostname | default('localhost') }}:{{ deployment_health_port | default(8443) }}/api/users"
+        ca_path: "{{ deployment_ca_path | default(app_dir ~ '/tls/certs/dev-ca.crt') }}"
+        validate_certs: true
+        status_code: 401
+      register: gateway_health
+      retries: 18
+      delay: 5
+      until: gateway_health.status == 401

@@ -1,0 +1,7 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.138.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes: [./otel-collector.yml:/etc/otelcol/config.yaml:ro]
+    networks: [backend]
+    expose: [4317, 4318]

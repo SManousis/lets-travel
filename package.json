@@ -1,0 +1,12 @@
+{
+  "name": "travel-plan-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Development tooling for the Travel Plan API contracts",
+  "engines": { "node": ">=22.12.0 <23", "npm": ">=10" },
+  "scripts": {
+    "lint:api": "redocly lint --max-problems 100 docs/api/auth.yaml docs/api/users.yaml docs/api/travels.yaml docs/api/payments.yaml",
+    "test:payment-sim": "node --test scripts/sandbox/mock-providers.test.mjs scripts/sandbox/create-sim-env.test.mjs"
+  },
+  "devDependencies": { "@redocly/cli": "2.52.0" }
+}

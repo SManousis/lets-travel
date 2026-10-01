@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: auth-service
+  autoconfigure:
+    exclude: org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration,org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+security:
+  token-secret: ${AUTH_TOKEN_SECRET:replace-with-at-least-32-random-characters}
+  access-token-ttl-seconds: ${ACCESS_TOKEN_TTL_SECONDS:900}
+  admin-username: ${ADMIN_USERNAME:admin}
+  admin-password: ${ADMIN_PASSWORD:change-me-admin}
+  internal-service-token: ${AUTH_INTERNAL_SERVICE_TOKEN:change-me-internal}
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8081}
+management:
+  server:
+    address: ${MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${MANAGEMENT_PORT:9081}
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+---
+spring:
+  config:
+    activate:
+      on-profile: infra
+  autoconfigure:
+    exclude: []
+  datasource:
+    url: ${AUTH_DB_URL:jdbc:postgresql://postgres:5432/travel_auth}
+    username: ${AUTH_DB_USER:auth_app}
+    password: ${AUTH_DB_PASSWORD:change-me-auth}
+    hikari:
+      connection-timeout: 5000
+      initialization-fail-timeout: 30000
+  flyway:
+    locations: classpath:db/migration

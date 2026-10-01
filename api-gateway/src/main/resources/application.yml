@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: auth
+              uri: ${services.auth.url}
+              predicates:
+                - Path=/api/auth,/api/auth/**
+            - id: users
+              uri: ${services.users.url}
+              predicates:
+                - Path=/api/users,/api/users/**,/api/travelers,/api/travelers/**
+            - id: travel
+              uri: ${services.travel.url}
+              predicates:
+                - Path=/api/travels,/api/travels/**,/api/destinations,/api/destinations/**
+            - id: payments
+              uri: ${services.payments.url}
+              predicates:
+                - Path=/api/payment-methods,/api/payment-methods/**,/api/payment-gateways,/api/payment-gateways/**
+services:
+  auth:
+    url: ${AUTH_SERVICE_URL:http://127.0.0.1:8081}
+  users:
+    url: ${USER_SERVICE_URL:http://127.0.0.1:8082}
+  travel:
+    url: ${TRAVEL_SERVICE_URL:http://127.0.0.1:8083}
+  payments:
+    url: ${PAYMENT_SERVICE_URL:http://127.0.0.1:8084}
+auth:
+  service-url: ${AUTH_SERVICE_URL:http://127.0.0.1:8081}
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8080}
+security:
+  token-secret: ${AUTH_TOKEN_SECRET:replace-with-at-least-32-random-characters}
+  internal-service-token: ${AUTH_INTERNAL_SERVICE_TOKEN:change-me-internal}
+management:
+  server:
+    address: ${MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${MANAGEMENT_PORT:9080}
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true

@@ -1,0 +1,862 @@
+---
+openapi: 3.0.3
+info:
+  title: Payment methods and gateways API
+  version: 0.1.0
+  description: 'Target contract. The current synchronous implementation and its response
+    differences are documented in docs/payments.md. Local active-user validation is
+    implemented; provider-customer ownership is not proven because no trusted binding
+    to a local user exists. Local default selection is implemented with the current
+    controller payload documented in docs/payments.md. Operation resources and
+    per-gateway Vault secrets remain future work.'
+servers:
+- url: http://localhost:8080
+  description: Loopback development gateway; deployment requires HTTPS.
+security:
+- adminBearer: []
+x-required-role: ADMIN
+paths:
+  "/api/payment-gateways":
+    get:
+      operationId: listPaymentGateways
+      summary: List paymentgateway records
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PaymentGatewayPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      description: Order by createdAt ascending then UUID ascending. Includes pending
+        and failed records.
+    post:
+      operationId: createPaymentGateway
+      summary: Create paymentgateway
+      responses:
+        '201':
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PaymentGateway"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/PaymentGatewayCreate"
+  "/api/payment-gateways/{gatewayId}":
+    get:
+      operationId: getPaymentGateway
+      summary: Read paymentgateway
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PaymentGateway"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: gatewayId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updatePaymentGateway
+      summary: Update paymentgateway
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PaymentGateway"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/PaymentGatewayPatch"
+      parameters:
+      - name: gatewayId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: Provider is immutable. Disabling blocks new connections but does
+        not detach existing methods; cleanup must continue using retained credentials.
+        Vault reference must resolve to authorized credentials for the same provider
+        account; rotation is validated before replacement.
+    delete:
+      operationId: deletePaymentGateway
+      summary: Delete paymentgateway
+      responses:
+        '204':
+          description: Resource deleted or session revoked.
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: gatewayId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: 409 GATEWAY_IN_USE while any method, including pending/failed/disabled
+        methods, references the gateway. Detach methods first. Deleting local configuration
+        does not delete the provider account or Vault secret.
+  "/api/payment-methods":
+    get:
+      operationId: listPaymentMethods
+      summary: List paymentmethod records
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PaymentMethodPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      - name: userId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: gatewayId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      description: Order by createdAt ascending then UUID ascending. Includes pending
+        and failed records.
+    post:
+      operationId: createPaymentMethod
+      summary: Create paymentmethod
+      responses:
+        '202':
+          description: Durably accepted; poll Location for completion.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Operation"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/PaymentMethodCreate"
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      description: Owner must be active and gateway enabled. Persist PENDING method
+        and operation before provider inspection/connection. Duplicate gateway/provider
+        reference returns 409. Activation and default selection occur only on provider
+        success.
+  "/api/payment-methods/{paymentMethodId}":
+    get:
+      operationId: getPaymentMethod
+      summary: Read paymentmethod
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PaymentMethod"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: paymentMethodId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updatePaymentMethod
+      summary: Update paymentmethod
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PaymentMethod"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/PaymentMethodPatch"
+      parameters:
+      - name: paymentMethodId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: Edit local label/default only; provider funding details, owner
+        and gateway are immutable. Only ACTIVE methods may become default; selection
+        atomically clears the previous default for this user. Reject updates during
+        deletion with 409.
+    delete:
+      operationId: deletePaymentMethod
+      summary: Delete paymentmethod
+      responses:
+        '202':
+          description: Durably accepted; poll Location for completion.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Operation"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: paymentMethodId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      description: Disable local use immediately, then detach/revoke at provider.
+        Retain pending/failed record until provider cleanup succeeds. Operation URL
+        uses /api/payment-methods/operations.
+  "/api/payment-methods/operations/{operationId}":
+    get:
+      operationId: getOperation
+      summary: Read durable operation status
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Operation"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: operationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: Returns 200 even when the operation status is FAILED. Operation
+        IDs remain readable at least 30 days after termination.
+  "/api/payment-methods/operations/{operationId}/retry":
+    post:
+      operationId: retryOperation
+      summary: Resume a retryable failed operation
+      responses:
+        '202':
+          description: Durably accepted; poll Location for completion.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Operation"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: operationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      description: Resumes the same operation from its last acknowledged step. Returns
+        409 unless FAILED and retryable, except an identical idempotent replay.
+components:
+  securitySchemes:
+    adminBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Requires ADMIN at both gateway and service. Validate signature,
+        issuer, audience, expiry and revocation.
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Durably deduplicated per caller, method and path; same key with
+        different input returns 409.
+  responses:
+    BadRequest:
+      description: Invalid request or fields.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing, invalid, expired or revoked authentication.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          description: Bearer challenge for access-token endpoints.
+    Forbidden:
+      description: Valid identity lacks ADMIN, or CSRF validation failed.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    NotFound:
+      description: Resource or referenced resource not found.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Conflict:
+      description: Uniqueness, lifecycle, ownership, last-admin, in-use or idempotency
+        conflict.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unavailable:
+      description: Dependency unavailable or work could not be durably accepted.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+          description: Suggested delay in seconds, if known.
+  schemas:
+    FieldError:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+      required:
+      - field
+      - code
+      - message
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: The request contains invalid fields.
+        fieldErrors:
+          type: array
+          items:
+            "$ref": "#/components/schemas/FieldError"
+        traceId:
+          type: string
+          example: 4bf92f3577b34da6a3ce929d0e0e4736
+      required:
+      - code
+      - message
+      - fieldErrors
+      - traceId
+    Operation:
+      type: object
+      additionalProperties: false
+      properties:
+        operationId:
+          type: string
+          format: uuid
+        type:
+          type: string
+        resourceId:
+          type: string
+          format: uuid
+        resourceType:
+          type: string
+        status:
+          type: string
+          enum:
+          - PENDING
+          - RUNNING
+          - RETRYING
+          - SUCCEEDED
+          - FAILED
+        steps:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              name:
+                type: string
+              status:
+                type: string
+                enum:
+                - PENDING
+                - RUNNING
+                - SUCCEEDED
+                - FAILED
+            required:
+            - name
+            - status
+        retryable:
+          type: boolean
+        error:
+          "$ref": "#/components/schemas/Error"
+        traceId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+      - operationId
+      - type
+      - resourceId
+      - resourceType
+      - status
+      - steps
+      - retryable
+      - traceId
+      - createdAt
+      - updatedAt
+    PaymentGatewayCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        provider:
+          type: string
+          enum:
+          - STRIPE
+          - PAYPAL
+        enabled:
+          type: boolean
+        vaultSecretRef:
+          type: string
+          minLength: 1
+          maxLength: 500
+          writeOnly: true
+          description: Vault reference to sandbox credentials; never the secret value.
+      required:
+      - name
+      - provider
+      - enabled
+      - vaultSecretRef
+    PaymentGatewayPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        enabled:
+          type: boolean
+        vaultSecretRef:
+          type: string
+          minLength: 1
+          maxLength: 500
+          writeOnly: true
+      minProperties: 1
+    PaymentGateway:
+      type: object
+      additionalProperties: false
+      properties:
+        gatewayId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        provider:
+          type: string
+          enum:
+          - STRIPE
+          - PAYPAL
+        enabled:
+          type: boolean
+        environment:
+          type: string
+          enum:
+          - SANDBOX
+      required:
+      - gatewayId
+      - createdAt
+      - updatedAt
+      - name
+      - provider
+      - enabled
+      - environment
+    PaymentMethodCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+          format: uuid
+        gatewayId:
+          type: string
+          format: uuid
+        providerReference:
+          type: string
+          minLength: 1
+          maxLength: 512
+          writeOnly: true
+          description: Opaque sandbox provider token/reference obtained through the
+            provider flow. Never PAN, CVV or raw bank credentials.
+        label:
+          type: string
+          minLength: 1
+          maxLength: 100
+        isDefault:
+          type: boolean
+      required:
+      - userId
+      - gatewayId
+      - providerReference
+      - label
+      - isDefault
+    PaymentMethodPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 100
+        isDefault:
+          type: boolean
+      minProperties: 1
+    SafeDisplayMetadata:
+      type: object
+      additionalProperties: false
+      properties:
+        brand:
+          type: string
+          maxLength: 50
+        lastFour:
+          type: string
+          pattern: "^[0-9]{4}$"
+        expiryMonth:
+          type: integer
+          minimum: 1
+          maximum: 12
+        expiryYear:
+          type: integer
+          minimum: 2000
+    PaymentMethod:
+      type: object
+      additionalProperties: false
+      properties:
+        paymentMethodId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        userId:
+          type: string
+          format: uuid
+        gatewayId:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          enum:
+          - STRIPE
+          - PAYPAL
+        label:
+          type: string
+          minLength: 1
+          maxLength: 100
+        isDefault:
+          type: boolean
+        display:
+          "$ref": "#/components/schemas/SafeDisplayMetadata"
+        status:
+          type: string
+          enum:
+          - PENDING
+          - ACTIVE
+          - DISABLED
+          - DELETION_PENDING
+          - FAILED
+      required:
+      - paymentMethodId
+      - createdAt
+      - updatedAt
+      - userId
+      - gatewayId
+      - provider
+      - label
+      - isDefault
+      - display
+      - status
+    PaymentGatewayPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PaymentGateway"
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+    PaymentMethodPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/PaymentMethod"
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages

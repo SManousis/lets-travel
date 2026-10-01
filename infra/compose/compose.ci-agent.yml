@@ -1,0 +1,25 @@
+# Local PR-validation agent. The agent secret comes from an ignored .env.ci-agent file.
+services:
+  pr-agent:
+    image: travel-plan-pr-agent:local
+    build:
+      context: ../ci-agent
+    init: true
+    restart: unless-stopped
+    command:
+      - -url
+      - http://jenkins:8080/
+      - -webSocket
+      - -secret
+      - ${JENKINS_AGENT_SECRET:?Set JENKINS_AGENT_SECRET in .env.ci-agent}
+      - -name
+      - travel-plan-pr-1
+      - -workDir
+      - /home/jenkins/agent
+    depends_on:
+      - jenkins
+    volumes:
+      - pr-agent-work:/home/jenkins/agent
+
+volumes:
+  pr-agent-work:

@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: travel-service
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8083}
+neo4j:
+  uri: ${NEO4J_URI:bolt://neo4j:7687}
+  username: ${NEO4J_USERNAME:neo4j}
+  password: ${NEO4J_PASSWORD:change-me-neo4j}
+auth:
+  service-url: ${AUTH_SERVICE_URL:http://127.0.0.1:8081}
+security:
+  token-secret: ${AUTH_TOKEN_SECRET:replace-with-at-least-32-random-characters}
+  internal-service-token: ${AUTH_INTERNAL_SERVICE_TOKEN:change-me-internal}
+management:
+  server:
+    address: ${MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${MANAGEMENT_PORT:9083}
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true

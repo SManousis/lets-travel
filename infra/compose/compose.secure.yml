@@ -1,0 +1,35 @@
+services:
+  postgres:
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/tls/server.crt", "-c", "ssl_key_file=/tls/server.key"]
+    # Each TLS consumer mounts its own copy: PostgreSQL, Vault, and Neo4j need different key owners.
+    volumes: [postgres-data:/var/lib/postgresql/data, ../postgres/init:/docker-entrypoint-initdb.d:ro, ../tls/certs/postgres:/tls:ro]
+  neo4j:
+    volumes: [neo4j-data:/data, neo4j-logs:/logs, ../neo4j/init:/var/lib/neo4j/import/init, ../tls/certs/neo4j:/var/lib/neo4j/certificates/bolt]
+    environment:
+      NEO4J_dbms_ssl_policy_bolt_enabled: "true"
+      NEO4J_dbms_ssl_policy_bolt_client__auth: NONE
+      NEO4J_server_bolt_tls__level: REQUIRED
+  travel-service:
+    environment:
+      NEO4J_URI: bolt+ssc://neo4j:7687
+  vault:
+    image: hashicorp/vault:1.20
+    # The image entrypoint already appends -config=/vault/config; naming the file again binds 8200 twice.
+    command: ["server"]
+    cap_add: [IPC_LOCK]
+    volumes: [vault-data:/vault/file, ../vault/config:/vault/config:ro, ../tls/certs/vault:/vault/tls:ro]
+    networks: [backend]
+    expose: [8200]
+  tls-proxy:
+    image: nginx:1.28.0-alpine
+    depends_on: [api-gateway, admin-ui]
+    volumes: [../proxy/nginx.conf:/etc/nginx/nginx.conf:ro, ../tls/certs:/etc/nginx/tls:ro]
+    networks: [backend]
+    ports: ["8443:8443"]
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.138.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes: [../compose/otel-collector.yml:/etc/otelcol/config.yaml:ro]
+    networks: [backend]
+volumes:
+  vault-data:

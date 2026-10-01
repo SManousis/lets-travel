@@ -1,0 +1,5 @@
+CREATE TABLE payment_user_lifecycle (
+    user_id UUID PRIMARY KEY,
+    deleting BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

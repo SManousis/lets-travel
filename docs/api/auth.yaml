@@ -1,0 +1,327 @@
+---
+openapi: 3.0.3
+info:
+  title: Authentication API
+  version: 0.1.0
+  description: 'FUTURE CONTRACT: not implemented by the Phase 1 skeleton. Dependency
+    unavailable or work could not be durably accepted.'
+servers:
+- url: http://localhost:8080
+  description: Loopback development gateway; deployment requires HTTPS.
+security:
+- adminBearer: []
+x-required-role: ADMIN
+paths:
+  "/api/auth/login":
+    post:
+      operationId: login
+      summary: Authenticate an administrator
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TokenResponse"
+          headers:
+            Set-Cookie:
+              description: refresh_token is Secure; HttpOnly; SameSite=Strict; Path=/api/auth.
+                Also sets a separate Secure SameSite CSRF cookie readable by the UI.
+                Never place refresh token in JSON.
+              schema:
+                type: string
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+        '429':
+          description: Login rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Error"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/LoginRequest"
+      description: Only ADMIN identities receive an admin session; invalid credentials
+        return 401 and non-admin identities return 403. Sets rotating refresh cookie
+        and a session-bound CSRF cookie readable by the UI. Apply login throttling.
+      security: []
+      x-required-role: NONE
+  "/api/auth/refresh":
+    post:
+      operationId: refreshSession
+      summary: Rotate refresh session and obtain an access token
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TokenResponse"
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Rotated Secure HttpOnly SameSite=Strict refresh cookie
+                and refreshed CSRF cookie.
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 512
+        description: CSRF token bound to refresh session; required together with an
+          allowed Origin.
+      description: Requires a valid active ADMIN refresh session, allowed Origin and
+        matching CSRF token. Reuse of a rotated token revokes its session family.
+      security:
+      - refreshCookie: []
+      x-required-role: ADMIN_REFRESH_SESSION
+  "/api/auth/logout":
+    post:
+      operationId: logout
+      summary: Revoke the current session
+      responses:
+        '204':
+          description: Resource deleted or session revoked.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Expires refresh and CSRF cookies.
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 512
+        description: CSRF token bound to refresh session; required together with an
+          allowed Origin.
+      description: Revokes refresh session and associated access tokens, and expires
+        refresh/CSRF cookies.
+      security:
+      - adminBearer: []
+        refreshCookie: []
+  "/api/auth/me":
+    get:
+      operationId: getCurrentIdentity
+      summary: Read authenticated identity
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Identity"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+components:
+  securitySchemes:
+    adminBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Requires ADMIN at both gateway and service. Validate signature,
+        issuer, audience, expiry and revocation.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: Rotating Secure HttpOnly SameSite=Strict cookie scoped to /api/auth.
+        Refresh requires an allowed Origin and matching CSRF header.
+  responses:
+    BadRequest:
+      description: Invalid request or fields.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing, invalid, expired or revoked authentication.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          description: Bearer challenge for access-token endpoints.
+    Forbidden:
+      description: Valid identity lacks ADMIN, or CSRF validation failed.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    NotFound:
+      description: Resource or referenced resource not found.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Conflict:
+      description: Uniqueness, lifecycle, ownership, last-admin, in-use or idempotency
+        conflict.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unavailable:
+      description: Dependency unavailable or work could not be durably accepted.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+          description: Suggested delay in seconds, if known.
+  schemas:
+    FieldError:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+      required:
+      - field
+      - code
+      - message
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: The request contains invalid fields.
+        fieldErrors:
+          type: array
+          items:
+            "$ref": "#/components/schemas/FieldError"
+        traceId:
+          type: string
+          example: 4bf92f3577b34da6a3ce929d0e0e4736
+      required:
+      - code
+      - message
+      - fieldErrors
+      - traceId
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 128
+          writeOnly: true
+      required:
+      - email
+      - password
+    Identity:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - ADMIN
+            - USER
+          minItems: 1
+          uniqueItems: true
+      required:
+      - userId
+      - email
+      - roles
+    TokenResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum:
+          - Bearer
+        expiresIn:
+          type: integer
+          minimum: 1
+        identity:
+          "$ref": "#/components/schemas/Identity"
+      required:
+      - accessToken
+      - tokenType
+      - expiresIn
+      - identity

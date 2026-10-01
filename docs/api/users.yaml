@@ -1,0 +1,863 @@
+---
+openapi: 3.0.3
+info:
+  title: Users and travelers API
+  version: 0.1.0
+  description: 'Target contract. The current user DELETE is synchronous and returns
+    an empty 202 while cleanup remains or 204 when complete; it does not yet expose
+    the operation resource or Location response described below. See docs/operations.md
+    for the implemented retry procedure.'
+servers:
+- url: http://localhost:8080
+  description: Loopback development gateway; deployment requires HTTPS.
+security:
+- adminBearer: []
+x-required-role: ADMIN
+paths:
+  "/api/users":
+    get:
+      operationId: listUsers
+      summary: List user records
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/UserPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      description: Order by createdAt ascending then UUID ascending. Includes pending
+        and failed records.
+    post:
+      operationId: createUser
+      summary: Create user
+      responses:
+        '202':
+          description: Durably accepted; poll Location for completion.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Operation"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UserCreate"
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+  "/api/users/{userId}":
+    get:
+      operationId: getUser
+      summary: Read user
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/User"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateUser
+      summary: Update user
+      responses:
+        '202':
+          description: Durably accepted; poll Location for completion.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Operation"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/UserPatch"
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      description: Fields omitted are unchanged. Email/role/status changes coordinate
+        with auth; last-admin and self-disable/demotion return 409. Existing access
+        is revoked on disable.
+    delete:
+      operationId: deleteUser
+      summary: Delete user
+      responses:
+        '202':
+          description: Durably accepted; poll Location for completion.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Operation"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      description: Revoke access before cleanup; remove owned traveler/payment data
+        and travel participation, preserve shared travels/destinations. Pending profile
+        remains readable. Last-admin and self-deletion return 409.
+  "/api/travelers":
+    get:
+      operationId: listTravelers
+      summary: List traveler records
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TravelerPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      - name: userId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      description: Order by createdAt ascending then UUID ascending. Includes pending
+        and failed records.
+    post:
+      operationId: createTraveler
+      summary: Create traveler
+      responses:
+        '201':
+          description: Resource created.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Traveler"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TravelerCreate"
+      description: Owner must exist and be ACTIVE. Date of birth cannot be in the
+        future. Ownership is immutable.
+  "/api/travelers/{travelerId}":
+    get:
+      operationId: getTraveler
+      summary: Read traveler
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Traveler"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: travelerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateTraveler
+      summary: Update traveler
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Traveler"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TravelerPatch"
+      parameters:
+      - name: travelerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      operationId: deleteTraveler
+      summary: Delete traveler
+      responses:
+        '202':
+          description: Durably accepted; poll Location for completion.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Operation"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: travelerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      description: Remove participation before deleting this profile. Preserve all
+        travel aggregates. Status is available under /api/users/operations.
+  "/api/users/operations/{operationId}":
+    get:
+      operationId: getOperation
+      summary: Read durable operation status
+      responses:
+        '200':
+          description: Successful response.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Operation"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: operationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      description: Returns 200 even when the operation status is FAILED. Operation
+        IDs remain readable at least 30 days after termination.
+  "/api/users/operations/{operationId}/retry":
+    post:
+      operationId: retryOperation
+      summary: Resume a retryable failed operation
+      responses:
+        '202':
+          description: Durably accepted; poll Location for completion.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Operation"
+          headers:
+            Location:
+              description: Gateway-relative resource or operation URL.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+      parameters:
+      - name: operationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      description: Resumes the same operation from its last acknowledged step. Returns
+        409 unless FAILED and retryable, except an identical idempotent replay.
+components:
+  securitySchemes:
+    adminBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Requires ADMIN at both gateway and service. Validate signature,
+        issuer, audience, expiry and revocation.
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Durably deduplicated per caller, method and path; same key with
+        different input returns 409.
+  responses:
+    BadRequest:
+      description: Invalid request or fields.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing, invalid, expired or revoked authentication.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          description: Bearer challenge for access-token endpoints.
+    Forbidden:
+      description: Valid identity lacks ADMIN, or CSRF validation failed.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    NotFound:
+      description: Resource or referenced resource not found.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Conflict:
+      description: Uniqueness, lifecycle, ownership, last-admin, in-use or idempotency
+        conflict.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unavailable:
+      description: Dependency unavailable or work could not be durably accepted.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+          description: Suggested delay in seconds, if known.
+  schemas:
+    FieldError:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+      required:
+      - field
+      - code
+      - message
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: The request contains invalid fields.
+        fieldErrors:
+          type: array
+          items:
+            "$ref": "#/components/schemas/FieldError"
+        traceId:
+          type: string
+          example: 4bf92f3577b34da6a3ce929d0e0e4736
+      required:
+      - code
+      - message
+      - fieldErrors
+      - traceId
+    Operation:
+      type: object
+      additionalProperties: false
+      properties:
+        operationId:
+          type: string
+          format: uuid
+        type:
+          type: string
+        resourceId:
+          type: string
+          format: uuid
+        resourceType:
+          type: string
+        status:
+          type: string
+          enum:
+          - PENDING
+          - RUNNING
+          - RETRYING
+          - SUCCEEDED
+          - FAILED
+        steps:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              name:
+                type: string
+              status:
+                type: string
+                enum:
+                - PENDING
+                - RUNNING
+                - SUCCEEDED
+                - FAILED
+            required:
+            - name
+            - status
+        retryable:
+          type: boolean
+        error:
+          "$ref": "#/components/schemas/Error"
+        traceId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+      - operationId
+      - type
+      - resourceId
+      - resourceType
+      - status
+      - steps
+      - retryable
+      - traceId
+      - createdAt
+      - updatedAt
+    UserCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - ADMIN
+            - USER
+          minItems: 1
+          uniqueItems: true
+        password:
+          type: string
+          format: password
+          minLength: 12
+          maxLength: 128
+          writeOnly: true
+      required:
+      - email
+      - displayName
+      - roles
+      - password
+    UserPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - ADMIN
+            - USER
+          minItems: 1
+          uniqueItems: true
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - DISABLED
+      minProperties: 1
+    User:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - ADMIN
+            - USER
+          minItems: 1
+          uniqueItems: true
+        status:
+          type: string
+          enum:
+          - PROVISIONING
+          - ACTIVE
+          - DISABLED
+          - DELETION_PENDING
+          - FAILED
+      required:
+      - userId
+      - createdAt
+      - updatedAt
+      - email
+      - displayName
+      - roles
+      - status
+    TravelerCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+          format: uuid
+        givenName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        familyName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        dateOfBirth:
+          type: string
+          format: date
+      required:
+      - userId
+      - givenName
+      - familyName
+      - dateOfBirth
+    TravelerPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        givenName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        familyName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        dateOfBirth:
+          type: string
+          format: date
+      minProperties: 1
+    Traveler:
+      type: object
+      additionalProperties: false
+      properties:
+        travelerId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        userId:
+          type: string
+          format: uuid
+        givenName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        familyName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        dateOfBirth:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - DELETION_PENDING
+      required:
+      - travelerId
+      - createdAt
+      - updatedAt
+      - userId
+      - givenName
+      - familyName
+      - dateOfBirth
+      - status
+    UserPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/User"
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+    TravelerPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Traveler"
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages

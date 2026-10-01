@@ -1,0 +1,8 @@
+extends:
+  - recommended
+rules:
+  # These contracts are private admin APIs with no published license or contact.
+  info-license: off
+  # Phase 1 contracts intentionally document the local development gateway.
+  no-server-example.com: off
+  no-unused-components: error
