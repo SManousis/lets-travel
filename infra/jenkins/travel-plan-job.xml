@@ -28,7 +28,7 @@
           <id>travel-plan-gitea</id>
           <serverUrl>https://platform.zone01.gr/git</serverUrl>
           <repoOwner>pkerasid</repoOwner>
-          <repository>travel-plan</repository>
+          <repository>lets-travel</repository>
           <credentialsId>gitea-token</credentialsId>
           <traits>
             <org.jenkinsci.plugin.gitea.BranchDiscoveryTrait>

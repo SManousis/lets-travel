@@ -12,6 +12,13 @@ export default defineConfig(({ mode }) => {
       environment: "jsdom",
       setupFiles: ["./src/test/setup.ts"],
       clearMocks: true,
+      coverage: {
+        provider: "v8",
+        reporter: ["text-summary", "lcov"],
+        reportsDirectory: "coverage",
+        include: ["src/**/*.{ts,tsx}"],
+        exclude: ["src/**/*.test.{ts,tsx}", "src/test/**", "src/main.tsx"],
+      },
     },
     server: {
       host: "127.0.0.1",
