@@ -10,4 +10,4 @@ Dependency review runs `npm audit --audit-level=high` for the root tooling and `
 docker compose -f infra/compose/compose.ci.yml up -d
 ```
 
-The local CI stack binds Jenkins and SonarQube to loopback and keeps data in named volumes. It supplies the services, not a configured Jenkins agent, plugins, credentials, or a demonstrated quality gate. SonarQube Community Build keeps one branch per project, so PR and `main` analyses share the `travel-plan` project and the dashboard shows the latest one. Protect `main` in Gitea with the PR validation job and record a failing-check rejection before marking Phase 3 complete.
+The local CI stack binds Jenkins and SonarQube to loopback and keeps data in named volumes. It supplies the services, not a configured Jenkins agent, plugins, credentials, or a demonstrated quality gate. SonarQube Community Build keeps one branch per project, so PR and `main` analyses share the `lets-travel` project and the dashboard shows the latest one. Protect `main` in Gitea with the PR validation job and record a failing-check rejection before marking Phase 3 complete.

@@ -22,7 +22,7 @@ unless a step says PowerShell.
   ```
 
   Then run `wsl --shutdown` in PowerShell and restart Docker Desktop.
-- A Gitea account that is an **admin collaborator** on `pkerasid/travel-plan`.
+- A Gitea account that is an **admin collaborator** on `pkerasid/lets-travel`.
 
 ## 2. Generate local secrets
 
@@ -42,7 +42,7 @@ docker compose -f infra/compose/compose.ci.yml up -d
 ## 4. SonarQube (http://127.0.0.1:9000)
 
 1. Log in with `admin` / `admin` and set a new password.
-2. **Projects → Create Project → Manually**: key `travel-plan` (lowercase, exactly), main branch `main`.
+2. **Projects → Create Project → Manually**: key `lets-travel` (lowercase, exactly), main branch `main`.
 3. **My Account → Security → Generate Tokens**: type *Global Analysis Token*. Copy it.
 4. **Administration → Configuration → Webhooks → Create**: URL `http://jenkins:8080/sonarqube-webhook/`
    (keep the final `/`). Without it, the Jenkins *Quality gate* stage hangs for 10 minutes.
@@ -50,7 +50,7 @@ docker compose -f infra/compose/compose.ci.yml up -d
 ## 5. Jenkins (http://127.0.0.1:8090)
 
 1. Unlock with the output of
-   `docker exec travel-plan-ci-jenkins-1 cat /var/jenkins_home/secrets/initialAdminPassword`,
+   `docker exec lets-travel-ci-jenkins-1 cat /var/jenkins_home/secrets/initialAdminPassword`,
    choose **Install suggested plugins**, create your admin user, keep Jenkins URL `http://127.0.0.1:8090/`.
 2. **Manage Jenkins → Plugins → Available**: install **Gitea** and **SonarQube Scanner**, then restart.
 3. **Manage Jenkins → Nodes → Built-In Node → Configure**: Number of executors `0`.
@@ -60,12 +60,12 @@ docker compose -f infra/compose/compose.ci.yml up -d
    |---|---|---|
    | `sonarqube-token` | Secret text | SonarQube token from step 4 |
    | `gitea-token` | Gitea Personal Access Token | Gitea **Settings → Applications**: permissions *repository: Read and Write*, *user: Read*. Do **not** tick "public only". |
-   | `travel-plan-registry` | Username with password | user `jenkins`, password from `.ci-secrets/registry-password.txt` |
-   | `travel-plan-deploy-ssh` | SSH Username with private key | user `deploy`, key = whole contents of `.ci-secrets/deploy_ed25519` |
-   | `travel-plan-release-env` | Secret file | upload `.ci-secrets/release.env` (only the deploy stage reads it) |
+   | `lets-travel-registry` | Username with password | user `jenkins`, password from `.ci-secrets/registry-password.txt` |
+   | `lets-travel-deploy-ssh` | SSH Username with private key | user `deploy`, key = whole contents of `.ci-secrets/deploy_ed25519` |
+   | `lets-travel-release-env` | Secret file | upload `.ci-secrets/release.env` (only the deploy stage reads it) |
 
 5. **Manage Jenkins → System**:
-   - **SonarQube servers**: tick *Environment variables*, add name `travel-plan-sonarqube`,
+   - **SonarQube servers**: tick *Environment variables*, add name `lets-travel-sonarqube`,
      URL `http://sonarqube:9000`, token `sonarqube-token`.
    - **Gitea Servers**: add `https://platform.zone01.gr/git`. A red *HTTP 403* under the URL is
      expected (Zone01 blocks anonymous API calls); save anyway.
@@ -74,11 +74,11 @@ docker compose -f infra/compose/compose.ci.yml up -d
      | Name | Value |
      |---|---|
      | `REGISTRY_HOST` | `registry:5000` |
-     | `IMAGE_PREFIX` | `registry:5000/travel-plan` |
+     | `IMAGE_PREFIX` | `registry:5000/lets-travel` |
      | `DEPLOY_INVENTORY` | `infra/ansible/inventory.ci.ini` |
 
-6. **Manage Jenkins → Nodes → New Node**: name `travel-plan-pr-1`, Permanent Agent, remote root
-   `/home/jenkins/agent`, label `travel-plan-ci`, launch *by connecting it to the controller*.
+6. **Manage Jenkins → Nodes → New Node**: name `lets-travel-pr-1`, Permanent Agent, remote root
+   `/home/jenkins/agent`, label `lets-travel-ci`, launch *by connecting it to the controller*.
    Open the node, copy the `-secret` value, and set `JENKINS_AGENT_SECRET=` in `.env.ci-agent`.
 
 ## 6. Start the full CI stack
@@ -92,7 +92,7 @@ Use this same command after every reboot. The node from step 5.6 should show as 
 Then give the deploy target its dev TLS certificates (once):
 
 ```sh
-docker exec -i travel-plan-ci-deploy-host-1 bash -s /opt/travel-plan/tls/certs < infra/tls/generate-dev-ca.sh
+docker exec -i lets-travel-ci-deploy-host-1 bash -s /opt/lets-travel/tls/certs < infra/tls/generate-dev-ca.sh
 ```
 
 ## 7. Create the pipeline job
@@ -101,10 +101,10 @@ The Gitea plugin cannot list another user's private repositories, so its *Reposi
 stays empty. Load the checked-in job definition instead:
 
 ```sh
-MSYS_NO_PATHCONV=1 docker exec -u 0 travel-plan-ci-jenkins-1 mkdir -p /var/jenkins_home/jobs/travel-plan
-MSYS_NO_PATHCONV=1 docker cp infra/jenkins/travel-plan-job.xml travel-plan-ci-jenkins-1:/var/jenkins_home/jobs/travel-plan/config.xml
-MSYS_NO_PATHCONV=1 docker exec -u 0 travel-plan-ci-jenkins-1 chown -R jenkins:jenkins /var/jenkins_home/jobs/travel-plan
-docker restart travel-plan-ci-jenkins-1
+MSYS_NO_PATHCONV=1 docker exec -u 0 lets-travel-ci-jenkins-1 mkdir -p /var/jenkins_home/jobs/lets-travel
+MSYS_NO_PATHCONV=1 docker cp infra/jenkins/lets-travel-job.xml lets-travel-ci-jenkins-1:/var/jenkins_home/jobs/lets-travel/config.xml
+MSYS_NO_PATHCONV=1 docker exec -u 0 lets-travel-ci-jenkins-1 chown -R jenkins:jenkins /var/jenkins_home/jobs/lets-travel
+docker restart lets-travel-ci-jenkins-1
 ```
 
 Jenkins scans Gitea every minute and builds each branch and pull request.
@@ -116,7 +116,7 @@ carry invisible characters and the rule silently matches nothing.
 
 - Branch name pattern: `main`
 - Disable push
-- Enable status check, pattern `travel-plan/pipeline/pr-main`
+- Enable status check, pattern `lets-travel/pipeline/pr-main`
 - Block merge on rejected reviews; block admins from overriding
 
 ## What runs
@@ -129,7 +129,7 @@ carry invisible characters and the rule silently matches nothing.
 ## Troubleshooting
 
 - **Quality gate waits forever**: the SonarQube webhook (step 4.4) is missing.
-- **Sonar says a similar key `Travel-Plan` exists**: rename the project key to `travel-plan`.
+- **Sonar says a similar key `Lets-Travel` exists**: rename the project key to `lets-travel`.
 - **Gitea token sees no repositories**: it was created as "public only", or your account is not a collaborator.
-- **Jobs stay queued**: the agent is offline or lacks the `travel-plan-ci` label; check `docker logs travel-plan-ci-pr-agent-1`.
+- **Jobs stay queued**: the agent is offline or lacks the `lets-travel-ci` label; check `docker logs lets-travel-ci-pr-agent-1`.
 - **`git push` prints `fatal: ambiguous argument`**: a Zone01 server hook warning; the push still succeeds.

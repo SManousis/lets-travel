@@ -1,4 +1,4 @@
-name: travel-plan
+name: lets-travel
 
 services:
   postgres:
@@ -82,7 +82,7 @@ services:
       retries: 18
 
   travel-service:
-    build: ../../travel-service
+    build: ../../lets-travel
     environment:
       SERVER_ADDRESS: 0.0.0.0
       MANAGEMENT_ADDRESS: 0.0.0.0

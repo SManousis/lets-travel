@@ -1,4 +1,4 @@
-name: travel-plan-ci
+name: lets-travel-ci
 services:
   jenkins:
     image: jenkins/jenkins:lts-jdk21

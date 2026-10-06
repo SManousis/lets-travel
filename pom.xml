@@ -17,7 +17,7 @@
   <modules>
     <module>auth-service</module>
     <module>user-service</module>
-    <module>travel-service</module>
+    <module>lets-travel</module>
     <module>payment-service</module>
     <module>api-gateway</module>
   </modules>

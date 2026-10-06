@@ -17,13 +17,13 @@ registry_hash=$(docker run --rm httpd:2.4-alpine htpasswd -Bbn jenkins "$registr
 
 random() { openssl rand -hex "$1"; }
 cat > .env.ci-agent <<EOF
-# Paste the secret from Jenkins > Nodes > travel-plan-pr-1 after creating the node.
+# Paste the secret from Jenkins > Nodes > lets-travel-pr-1 after creating the node.
 JENKINS_AGENT_SECRET=
 DEPLOY_AUTHORIZED_KEY='$(cat .ci-secrets/deploy_ed25519.pub)'
 REGISTRY_HTPASSWD='$registry_hash'
 EOF
 
-# Uploaded to Jenkins as the travel-plan-release-env Secret file; read only by the deploy stage.
+# Uploaded to Jenkins as the lets-travel-release-env Secret file; read only by the deploy stage.
 cat > .ci-secrets/release.env <<EOF
 POSTGRES_SUPERUSER_PASSWORD=$(random 16)
 AUTH_DB_PASSWORD=$(random 16)

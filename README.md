@@ -55,7 +55,7 @@ After the build, start each command in a separate terminal:
 ```sh
 java -jar auth-service/target/auth-service.jar
 java -jar user-service/target/user-service.jar
-java -jar travel-service/target/travel-service.jar
+java -jar lets-travel/target/travel-service.jar
 java -jar payment-service/target/payment-service.jar
 java -jar api-gateway/target/api-gateway.jar
 npm --prefix admin-ui run dev

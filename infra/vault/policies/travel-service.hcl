@@ -1,2 +1,2 @@
-path "secret/data/travel-plan/travel" { capabilities = ["read"] }
-path "secret/metadata/travel-plan/travel" { capabilities = ["read"] }
+path "secret/data/lets-travel/travel" { capabilities = ["read"] }
+path "secret/metadata/lets-travel/travel" { capabilities = ["read"] }
