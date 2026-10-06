@@ -1,15 +1,43 @@
-# Future admin API contracts
+# API contracts
 
-The OpenAPI 3.0.3 files in this directory describe planned APIs for Phases 4–7.
-Phase 1 starts applications and configures routes; it does **not** implement these
-endpoints, authentication, lifecycle workers, databases, or provider integrations.
+The OpenAPI 3.0.3 files in this directory are target contracts. A contract being
+present does not mean its endpoints are implemented; each file's description
+names the phase that implements it.
 
-| File | Gateway paths |
-| --- | --- |
-| [auth.yaml](auth.yaml) | `/api/auth` login, refresh, logout, current identity |
-| [users.yaml](users.yaml) | `/api/users`, `/api/travelers`, lifecycle operation status/retry |
-| [travels.yaml](travels.yaml) | `/api/travels`, nested itinerary/participation, `/api/destinations` |
-| [payments.yaml](payments.yaml) | `/api/payment-methods`, `/api/payment-gateways`, provider operation status/retry |
+| File | Owner | Gateway paths |
+| --- | --- | --- |
+| [auth.yaml](auth.yaml) | auth-service | `/api/auth` login, refresh, logout, current identity |
+| [users.yaml](users.yaml) | user-service | `/api/users`, `/api/travelers`, lifecycle operation status/retry |
+| [travels.yaml](travels.yaml) | travel-service | `/api/travels`, nested itinerary/participation, `/api/destinations` |
+| [recommendations.yaml](recommendations.yaml) | travel-service | `/api/recommendations` |
+| [payments.yaml](payments.yaml) | payment-service | `/api/payment-methods`, `/api/payment-gateways`, provider operation status/retry |
+| [engagement.yaml](engagement.yaml) | engagement-service | `/api/subscriptions`, `/api/managed-travels`, `/api/feedback`, `/api/reports`, `/api/admin/reports` |
+| [dashboards.yaml](dashboards.yaml) | engagement-service | `/api/dashboards`, `/api/managers` |
+| [search.yaml](search.yaml) | search-service | `/api/search` |
+
+## Roles
+
+Roles are `ADMIN`, `TRAVEL_MANAGER` and `TRAVELER`, and they inherit:
+`ADMIN` > `TRAVEL_MANAGER` > `TRAVELER`. An operation's `x-required-role` (set
+per operation, or for the whole file) is the *minimum* role, so a `TRAVELER`
+operation is also open to managers and admins. A plain HTTP bearer scheme cannot
+express roles, which is why the extension exists; the gateway and the receiving
+service both enforce it.
+
+Role checks are not enough on their own. Services also check ownership:
+
+- A traveler acts only on their own subscriptions, feedback and reports.
+- A travel manager manages only travels whose `managerId` is theirs, and only
+  those travels' subscribers and feedback.
+- An admin may act on any resource.
+
+A request outside the caller's ownership returns `404`, not `403`, so it does not
+reveal that another user's resource exists. The full capability matrix is in
+[architecture](../architecture.md#role-capabilities).
+
+The four Travel Plan contracts (auth, users, travels, payments) still declare
+`x-required-role: ADMIN` everywhere; Phase 1 and Phase 2 open the relevant
+operations to the new roles.
 
 Each document is standalone with local component references. The local server is
 `http://localhost:8080`; paths already contain `/api`, and the gateway must not
@@ -48,6 +76,25 @@ message text. Standard codes include:
 | 404 | Requested resource does not exist: `NOT_FOUND` |
 | 409 | Duplicate email/reference, in-use destination/gateway, protected admin, lifecycle/ownership conflict, or idempotency mismatch: `CONFLICT` or a more specific stable code |
 | 503 | Owner cannot durably accept work, or a synchronous dependency is unavailable: `DEPENDENCY_UNAVAILABLE`; response may include `Retry-After` |
+
+Let's Travel adds these stable business codes:
+
+| Status | Code | Raised when |
+| --- | --- | --- |
+| 400 | `SELF_REPORT` | A user reports themselves |
+| 409 | `TRAVEL_NOT_BOOKABLE` | Subscribing to an unpublished, started or past travel |
+| 409 | `TRAVEL_FULL` | No place left |
+| 409 | `ALREADY_SUBSCRIBED` | The caller already holds an active subscription |
+| 409 | `CANCELLATION_CUTOFF_PASSED` | Traveler cancels later than start date minus 3 days |
+| 409 | `FEEDBACK_NOT_ELIGIBLE` | No completed participation for that travel |
+| 409 | `FEEDBACK_ALREADY_SUBMITTED` | Second feedback for the same participation |
+| 409 | `DUPLICATE_REPORT` | The caller already has an open report on that target |
+| 503 | `SEARCH_UNAVAILABLE` | The search index is down; use the published-travel browse |
+
+Synchronous creates that must not be duplicated (subscribing, cancelling,
+removing a subscriber, feedback, reports) also take a required UUID
+`Idempotency-Key`, with the same replay and `409` rules as asynchronous operations.
+Money is an integer `amountMinor` plus an ISO 4217 `currency`, never a float.
 
 An asynchronous operation's failure is retrieved with `200` and `status: FAILED`,
 not an HTTP error for the successful status read. Replaying a DELETE with its

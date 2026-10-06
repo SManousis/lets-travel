@@ -37,9 +37,9 @@ These foundations must be verified as part of Phase 0. Their presence does not a
 | Component | Owns | Primary store |
 | --- | --- | --- |
 | `auth-service` | Credentials, password hashes, roles, sessions, token revocation | PostgreSQL |
-| `user-service` | User profiles, public manager profiles, privacy preferences | PostgreSQL |
+| `user-service` | User profiles, privacy preferences | PostgreSQL |
 | `travel-service` | Travel listings, manager ownership, itineraries, recommendation graph | Neo4j |
-| `engagement-service` (new) | Subscriptions, cancellation history, feedback, reports, dashboard projections | PostgreSQL |
+| `engagement-service` (new) | Subscriptions, cancellation history, feedback, reports, dashboard projections, public manager pages | PostgreSQL |
 | `payment-service` | Saved payment methods and subscription-payment lifecycle | PostgreSQL + provider APIs |
 | `search-service` (new) | Search/autocomplete API and Elasticsearch index projection | Elasticsearch |
 | `api-gateway` | Public routing, authentication, coarse authorization, request IDs | None |
@@ -103,13 +103,13 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 - [ ] Inventory existing implemented behavior separately from stubs, documentation, and unverified infrastructure claims.
 - [x] Add `engagement-service` and `search-service` to the Maven reactor with startup tests, health probes, Dockerfiles, and private management ports.
 - [x] Add PostgreSQL ownership/migrations for engagement data and Elasticsearch configuration with a pinned compatible version.
-- [ ] Update architecture and data-model documentation with service ownership, allowed dependencies, and prohibited direct database access.
-- [ ] Define versioned OpenAPI contracts for subscriptions, feedback, reports, search, autocomplete, recommendations, dashboards, and the public manager page.
-- [ ] Define standard pagination, validation errors, trace IDs, idempotency keys, and dependency-unavailable responses across the new APIs.
-- [ ] Define a durable event envelope containing `eventId`, `eventType`, `aggregateId`, `aggregateVersion`, `occurredAt`, and trace context.
-- [ ] Define per-service outbox/inbox, retry, dead-letter/reconciliation, and full read-model rebuild procedures.
-- [ ] Document the role-capability matrix and data flow from a travel write to Neo4j, Elasticsearch, engagement projections, and dashboards.
-- [ ] Add architecture tests or dependency rules that prevent one service from importing another service's domain classes.
+- [x] Update architecture and data-model documentation with service ownership, allowed dependencies, and prohibited direct database access.
+- [x] Define versioned OpenAPI contracts for subscriptions, feedback, reports, search, autocomplete, recommendations, dashboards, and the public manager page.
+- [x] Define standard pagination, validation errors, trace IDs, idempotency keys, and dependency-unavailable responses across the new APIs.
+- [x] Define a durable event envelope containing `eventId`, `eventType`, `aggregateId`, `aggregateVersion`, `occurredAt`, and trace context.
+- [x] Define per-service outbox/inbox, retry, dead-letter/reconciliation, and full read-model rebuild procedures.
+- [x] Document the role-capability matrix and data flow from a travel write to Neo4j, Elasticsearch, engagement projections, and dashboards.
+- [x] Add architecture tests or dependency rules that prevent one service from importing another service's domain classes.
 - [ ] **Completion gate:** A clean checkout builds, all modules start, OpenAPI lint passes, Compose resolves, and the team can explain service ownership and cross-store consistency from the documentation.
 
 ## Phase 1 — Roles, identities, and authorization

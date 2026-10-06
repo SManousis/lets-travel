@@ -12,6 +12,8 @@ Travel dates use ISO calendar dates, with inclusive duration
 | Users / PostgreSQL | `user_profile(user_id PK, email, display_name, status, version)`; `traveler(traveler_id PK, user_id FK, given_name, family_name, date_of_birth)`; operation/step records, idempotency mappings, outbox, deletion tombstones. Roles/email reflect acknowledged auth state; normalized email is unique locally too. |
 | Payments / PostgreSQL | `payment_gateway(gateway_id PK, provider, name, vault_secret_ref, enabled)`; `payment_method(payment_method_id PK, user_id, gateway_id FK, provider_reference, label, is_default, status, safe_display_metadata)`; provider operations, idempotency mappings, receipts, outbox, user deletion fences. Unique provider reference within gateway; at most one active default per user. |
 | Travel / Neo4j | Travel aggregate and destination graph below; participation references user/traveler UUIDs. Command receipts, deletion fences and outbox belong to the same graph transaction. |
+| Engagement / PostgreSQL | `outbox_event` and `processed_event` (migration V1, see [events](events.md)); subscriptions, cancellation history, feedback, reports with moderation history, and dashboard projections are added in Phases 3, 6 and 8. |
+| Search / Elasticsearch | `travels` alias over a versioned index (`travels-v1`, ...) holding one document per published travel; a derived read model rebuilt from travel-service, never a source of truth. |
 
 `traveler.user_id` and `payment_method.gateway_id` are same-service foreign keys.
 Payment `user_id`, graph `userId`/`travelerId`, and auth `user_id` are cross-service

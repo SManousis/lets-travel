@@ -51,6 +51,32 @@
       </plugins>
     </pluginManagement>
     <plugins>
+      <!-- Services may share only service-common; depending on another service's module fails the build. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>service-boundaries</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <excludes>
+                    <exclude>com.travelplan:*</exclude>
+                  </excludes>
+                  <includes>
+                    <include>com.travelplan:service-common</include>
+                  </includes>
+                  <message>Services may depend only on service-common. Exchange data through APIs or events (docs/events.md), never another service's classes.</message>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <!-- Writes target/site/jacoco/jacoco.xml per module for SonarQube coverage. -->
       <plugin>
         <groupId>org.jacoco</groupId>

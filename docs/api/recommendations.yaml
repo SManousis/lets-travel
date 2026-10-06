@@ -1,0 +1,202 @@
+---
+openapi: 3.0.3
+info:
+  title: Personalized recommendations API
+  version: 0.1.0
+  description: 'Target contract for the travel-service recommendation endpoint (Phase 7),
+    computed in Neo4j. The score uses the caller''s confirmed or completed
+    participation and their feedback ratings, matched on four travel fields:
+    destination, activity category, transport mode and accommodation category.
+    The scoring formula is documented in docs/architecture.md. Results never reveal
+    other users or their data; reasons only describe the caller''s own history.'
+servers:
+- url: http://localhost:8080
+  description: Loopback development gateway; deployment requires HTTPS.
+security:
+- bearerAuth: []
+x-required-role: TRAVELER
+paths:
+  "/api/recommendations":
+    get:
+      operationId: listRecommendations
+      summary: Recommend travels for the authenticated user
+      description: Returns only published, future travels with remaining places that
+        the caller is not already subscribed to. Callers without history (cold
+        start) receive `POPULAR` results ranked by recent confirmed subscriptions
+        and rating. Ties break on start date, then travel ID, so results are stable.
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 10
+      responses:
+        '200':
+          description: Recommended travels, best first.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Recommendations"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token checked at the gateway and in the receiving service.
+        Roles inherit, see docs/api/README.md.
+  responses:
+    BadRequest:
+      description: Invalid limit.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing, invalid, expired or revoked authentication.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Forbidden:
+      description: The caller's role is not allowed.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unavailable:
+      description: The graph database is unavailable (`DEPENDENCY_UNAVAILABLE`).
+        Clients hide the recommendation section rather than failing the page.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+  schemas:
+    Money:
+      type: object
+      additionalProperties: false
+      properties:
+        amountMinor:
+          type: integer
+          format: int64
+          minimum: 0
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+      required:
+      - amountMinor
+      - currency
+    Reason:
+      type: object
+      additionalProperties: false
+      description: 'One matched preference from the caller''s history, e.g. field
+        DESTINATION with value Rome.'
+      properties:
+        field:
+          type: string
+          enum:
+          - DESTINATION
+          - ACTIVITY_CATEGORY
+          - TRANSPORT_MODE
+          - ACCOMMODATION_CATEGORY
+        value:
+          type: string
+      required:
+      - field
+      - value
+    Recommendation:
+      type: object
+      additionalProperties: false
+      properties:
+        travelId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        price:
+          "$ref": "#/components/schemas/Money"
+        score:
+          type: number
+          format: double
+          minimum: 0
+          description: Relative score within this response; not comparable across
+            users or requests.
+        reasons:
+          type: array
+          description: Empty for POPULAR results.
+          items:
+            "$ref": "#/components/schemas/Reason"
+      required:
+      - travelId
+      - title
+      - startDate
+      - endDate
+      - price
+      - score
+      - reasons
+    Recommendations:
+      type: object
+      additionalProperties: false
+      properties:
+        strategy:
+          type: string
+          enum:
+          - PERSONALIZED
+          - POPULAR
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Recommendation"
+      required:
+      - strategy
+      - items
+    FieldError:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+      required:
+      - field
+      - code
+      - message
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          example: DEPENDENCY_UNAVAILABLE
+        message:
+          type: string
+        fieldErrors:
+          type: array
+          items:
+            "$ref": "#/components/schemas/FieldError"
+        traceId:
+          type: string
+      required:
+      - code
+      - message
+      - fieldErrors
+      - traceId

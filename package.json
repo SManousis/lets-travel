@@ -5,7 +5,7 @@
   "description": "Development tooling for the Travel Plan API contracts",
   "engines": { "node": ">=22.12.0 <23", "npm": ">=10" },
   "scripts": {
-    "lint:api": "redocly lint --max-problems 100 docs/api/auth.yaml docs/api/users.yaml docs/api/travels.yaml docs/api/payments.yaml",
+    "lint:api": "redocly lint --max-problems 100 docs/api/auth.yaml docs/api/users.yaml docs/api/travels.yaml docs/api/payments.yaml docs/api/engagement.yaml docs/api/dashboards.yaml docs/api/search.yaml docs/api/recommendations.yaml",
     "test:payment-sim": "node --test scripts/sandbox/mock-providers.test.mjs scripts/sandbox/create-sim-env.test.mjs"
   },
   "devDependencies": { "@redocly/cli": "2.52.0" }
