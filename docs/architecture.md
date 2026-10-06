@@ -113,3 +113,94 @@ structured redacted logs, W3C trace propagation, and shared revocation state.
 Provider callbacks, if required, get distinct signature-verified routes in Phase 7.
 Stripe and PayPal sandbox verification is required there; provider names and
 reference schemas in this phase do not demonstrate working integrations.
+
+## Role capabilities
+
+Roles inherit: an Admin can do everything a Travel Manager can, and a Travel
+Manager can do everything a Traveler can. "Own" means the caller's own record, or
+for managers, travels whose `managerId` is the caller. Contracts are in
+[docs/api](api/README.md).
+
+| Capability | Traveler | Travel Manager | Admin |
+| --- | --- | --- | --- |
+| Search, autocomplete, browse published travels | ✓ | ✓ | ✓ |
+| Personalized recommendations | ✓ | ✓ | ✓ |
+| Subscribe, pay, cancel up to 3 days before start | ✓ | ✓ | ✓ |
+| Feedback on completed travels they took part in | ✓ | ✓ | ✓ |
+| Report a manager, traveler or travel | ✓ | ✓ | ✓ |
+| View manager pages and own statistics | ✓ | ✓ | ✓ |
+| Create, edit, publish, unpublish, delete travels | – | Own | Any |
+| View and remove subscribers | – | Own travels | Any |
+| Read feedback for quality control | – | Own travels | All |
+| Manager dashboard (income, trips, travelers) | – | Own | Any manager |
+| Admin dashboard, manager ranking, travel history | – | – | ✓ |
+| Moderation queue (review and resolve reports) | – | – | ✓ |
+| Manage users and roles | – | – | ✓ |
+
+The gateway rejects a request whose role is below the operation's minimum. The
+receiving service checks the role again and checks ownership, because services
+must stay safe when called directly. Out-of-ownership requests return `404`.
+
+## Service dependencies
+
+- A service reads and writes only its own store. No service connects to another
+  service's database, graph or index.
+- Services share code only through `service-common`, which holds infrastructure
+  (request tracing) and no domain classes. Depending on another service's module
+  is rejected by the build (Maven Enforcer rule in the parent `pom.xml`).
+- Derived data moves by events, described in [events](events.md). Direct HTTP calls
+  between services are limited to token validation, payment confirmation and
+  internal snapshots, each with a machine token.
+
+## Data flow: from a travel write to every read model
+
+```mermaid
+sequenceDiagram
+    participant M as Manager (browser)
+    participant T as travel-service (Neo4j)
+    participant S as search-service (Elasticsearch)
+    participant E as engagement-service (PostgreSQL)
+    participant P as payment-service (PostgreSQL)
+    M->>T: publish travel
+    T->>T: one transaction: travel + TravelPublished outbox row
+    S->>T: poll feed, apply TravelPublished (index document)
+    E->>T: poll feed, apply TravelPublished (bookable snapshot)
+    Note over S,E: travel is now searchable and bookable
+    participant V as Traveler (browser)
+    V->>E: subscribe
+    E->>E: one transaction: reserve place + SubscriptionReserved
+    V->>P: pay
+    P->>E: confirm subscription is pending and owned (internal)
+    P->>P: charge provider, then SubscriptionPaymentSucceeded
+    E->>P: poll feed, confirm subscription + SubscriptionConfirmed
+    T->>E: poll feed, add participation to graph
+    S->>E: poll feed, update remaining places
+    Note over E: dashboard projections update from the same events
+```
+
+Every arrow labelled "poll feed" is asynchronous and idempotent; see
+[events](events.md) for ordering, retries, reconciliation and rebuilds.
+
+## Recommendation scoring
+
+Recommendations come from the caller's own history in the Neo4j graph and use four
+travel fields: destination, activity category, transport mode and accommodation
+category.
+
+1. **History weight.** Each of the caller's confirmed or completed travels gets a
+   weight from their feedback: `w = 1 + 0.5 × (rating − 3)`, so a rating of 5
+   gives 2.0, 3 gives 1.0 and 1 gives 0. A travel without feedback weighs 1.0.
+2. **Preferences.** For every value of each field (for example destination "Rome"),
+   the preference is the sum of the weights of history travels that have it.
+   Preferences are divided by the largest preference in the same field, giving
+   0 to 1.
+3. **Candidate score.** For each eligible travel:
+   `0.35 × destination + 0.25 × activity + 0.20 × transport + 0.20 × accommodation`,
+   where each term is the highest normalized preference among the candidate's
+   values for that field. Ties break on average rating, then start date, then ID.
+4. **Eligibility.** Only published travels that start in the future, have places
+   left, and that the caller is not subscribed to.
+5. **Reasons.** The response lists the field values that contributed, strongest
+   first, at most three.
+6. **Cold start.** A caller with no weighted history receives `POPULAR` results:
+   most confirmed subscriptions in the last 90 days, then rating.

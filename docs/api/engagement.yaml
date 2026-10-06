@@ -1,0 +1,988 @@
+---
+openapi: 3.0.3
+info:
+  title: Subscriptions, feedback and reports API
+  version: 0.1.0
+  description: 'Target contract for engagement-service (Phases 3 and 6). Each operation
+    declares its minimum role in `x-required-role`; higher roles inherit it (see
+    docs/api/README.md). Ownership is checked in the service, not only at the gateway:
+    a TRAVEL_MANAGER may act only on travels they manage, and ADMIN may act on any.
+    Requests outside the caller''s ownership return 404 so other users'' resources
+    are not revealed.'
+servers:
+- url: http://localhost:8080
+  description: Loopback development gateway; deployment requires HTTPS.
+security:
+- bearerAuth: []
+paths:
+  "/api/subscriptions":
+    post:
+      operationId: subscribeToTravel
+      summary: Reserve a place on a travel
+      x-required-role: TRAVELER
+      description: Reserves one place and creates a `PENDING_PAYMENT` subscription
+        with a snapshot of the price and the cancellation cutoff. The place is
+        released if payment fails or does not complete within 30 minutes. The last
+        place is reserved atomically, so concurrent requests cannot oversubscribe.
+        Conflict codes are `TRAVEL_NOT_BOOKABLE` (unpublished, started or past),
+        `TRAVEL_FULL` and `ALREADY_SUBSCRIBED` (an active subscription exists).
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SubscriptionCreate"
+      responses:
+        '201':
+          description: Place reserved; pay for it to confirm.
+          headers:
+            Location:
+              description: URL of the new subscription.
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Subscription"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+    get:
+      operationId: listMySubscriptions
+      summary: List the caller's own subscriptions
+      x-required-role: TRAVELER
+      description: Newest first. Covers upcoming and past trips, including cancelled ones.
+      parameters:
+      - name: status
+        in: query
+        schema:
+          "$ref": "#/components/schemas/SubscriptionStatus"
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      responses:
+        '200':
+          description: The caller's subscriptions.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SubscriptionPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/subscriptions/{subscriptionId}":
+    get:
+      operationId: getSubscription
+      summary: Read one subscription
+      x-required-role: TRAVELER
+      description: Visible to the subscriber, the travel's manager and admins.
+      parameters:
+      - "$ref": "#/components/parameters/SubscriptionId"
+      responses:
+        '200':
+          description: The subscription.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Subscription"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/subscriptions/{subscriptionId}/cancellation":
+    post:
+      operationId: cancelMySubscription
+      summary: Cancel the caller's own subscription
+      x-required-role: TRAVELER
+      description: Allowed while the travel's local calendar date is on or before
+        `cancellationCutoff` (start date minus 3 days); later requests return 409
+        `CANCELLATION_CUTOFF_PASSED`. A paid subscription is refunded through the
+        payment service and the place is released. Repeating a successful
+        cancellation returns the cancelled subscription.
+      parameters:
+      - "$ref": "#/components/parameters/SubscriptionId"
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      responses:
+        '200':
+          description: The cancelled subscription.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Subscription"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/managed-travels/{travelId}/subscribers":
+    get:
+      operationId: listTravelSubscribers
+      summary: List subscribers of a managed travel
+      x-required-role: TRAVEL_MANAGER
+      description: Active and past subscribers with safe profile summaries. Only the
+        travel's manager or an admin; other managers receive 404.
+      parameters:
+      - "$ref": "#/components/parameters/TravelId"
+      - name: status
+        in: query
+        schema:
+          "$ref": "#/components/schemas/SubscriptionStatus"
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      responses:
+        '200':
+          description: Subscribers of the travel.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SubscriberPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/managed-travels/{travelId}/subscribers/{subscriptionId}/removal":
+    post:
+      operationId: removeTravelSubscriber
+      summary: Unsubscribe a traveler from a managed travel
+      x-required-role: TRAVEL_MANAGER
+      description: Sets `CANCELLED_BY_MANAGER`, refunds any payment in full and
+        records the reason in the audit trail. Not limited by the traveler cutoff.
+      parameters:
+      - "$ref": "#/components/parameters/TravelId"
+      - "$ref": "#/components/parameters/SubscriptionId"
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/RemovalRequest"
+      responses:
+        '200':
+          description: The cancelled subscription.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Subscription"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/feedback":
+    post:
+      operationId: submitFeedback
+      summary: Rate a completed travel
+      x-required-role: TRAVELER
+      description: One feedback per completed participation. Rejected with 409
+        `FEEDBACK_NOT_ELIGIBLE` (not a participant, cancelled, or travel not yet
+        ended) or `FEEDBACK_ALREADY_SUBMITTED`. Comments are stored as plain text and
+        must be rendered as text.
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/FeedbackCreate"
+      responses:
+        '201':
+          description: Feedback recorded.
+          headers:
+            Location:
+              description: URL of the feedback.
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Feedback"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+    get:
+      operationId: listFeedback
+      summary: List feedback for quality control
+      x-required-role: TRAVEL_MANAGER
+      description: Managers see feedback on their own travels; admins see all and
+        may filter by manager. Newest first.
+      parameters:
+      - name: travelId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: managerId
+        in: query
+        description: Admin only; ignored for managers.
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      responses:
+        '200':
+          description: Feedback records.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/FeedbackPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/reports":
+    post:
+      operationId: fileReport
+      summary: Report a manager, traveler or travel
+      x-required-role: TRAVELER
+      description: Rejected with 400 `SELF_REPORT` when reporting oneself, 404 for an
+        unknown target, and 409 `DUPLICATE_REPORT` while the caller has an open
+        report on the same target. The reporter is never shown to the target.
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ReportCreate"
+      responses:
+        '201':
+          description: Report filed.
+          headers:
+            Location:
+              description: URL of the report.
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Report"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/admin/reports":
+    get:
+      operationId: listReports
+      summary: Moderation queue
+      x-required-role: ADMIN
+      description: Oldest open reports first.
+      parameters:
+      - name: status
+        in: query
+        schema:
+          "$ref": "#/components/schemas/ReportStatus"
+      - name: targetType
+        in: query
+        schema:
+          "$ref": "#/components/schemas/ReportTargetType"
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      responses:
+        '200':
+          description: Reports.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReportPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/admin/reports/{reportId}":
+    get:
+      operationId: getReport
+      summary: Read a report with its moderation history
+      x-required-role: ADMIN
+      parameters:
+      - "$ref": "#/components/parameters/ReportId"
+      responses:
+        '200':
+          description: The report.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReportDetail"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+    patch:
+      operationId: moderateReport
+      summary: Change a report's moderation state
+      x-required-role: ADMIN
+      description: Every change appends an immutable history entry with the admin,
+        time, new state and note. `RESOLVED` and `DISMISSED` are final.
+      parameters:
+      - "$ref": "#/components/parameters/ReportId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ModerationUpdate"
+      responses:
+        '200':
+          description: The updated report.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ReportDetail"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token checked at the gateway and in the receiving service.
+        Roles inherit, see docs/api/README.md.
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated UUID. A retry with the same key and body returns
+        the original result; the same key with a different body returns 409.
+      schema:
+        type: string
+        format: uuid
+    SubscriptionId:
+      name: subscriptionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TravelId:
+      name: travelId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReportId:
+      name: reportId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Invalid fields, identifiers or pagination (`VALIDATION_ERROR`,
+        `SELF_REPORT`).
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing, invalid, expired or revoked authentication.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Forbidden:
+      description: The caller's role is below the operation's required role.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    NotFound:
+      description: Unknown resource, or one outside the caller's ownership.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Conflict:
+      description: Business rule or idempotency conflict; `code` names the rule.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unavailable:
+      description: A required dependency is unavailable (`DEPENDENCY_UNAVAILABLE`);
+        nothing was changed.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+          description: Suggested delay in seconds, if known.
+  schemas:
+    Money:
+      type: object
+      additionalProperties: false
+      properties:
+        amountMinor:
+          type: integer
+          format: int64
+          minimum: 0
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+      required:
+      - amountMinor
+      - currency
+    SubscriptionStatus:
+      type: string
+      enum:
+      - PENDING_PAYMENT
+      - CONFIRMED
+      - PAYMENT_FAILED
+      - CANCELLED_BY_TRAVELER
+      - CANCELLED_BY_MANAGER
+      - COMPLETED
+    SubscriptionCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        travelId:
+          type: string
+          format: uuid
+      required:
+      - travelId
+    Subscription:
+      type: object
+      additionalProperties: false
+      properties:
+        subscriptionId:
+          type: string
+          format: uuid
+        travelId:
+          type: string
+          format: uuid
+        travelTitle:
+          type: string
+        travelerId:
+          type: string
+          format: uuid
+          description: User ID of the subscriber.
+        managerId:
+          type: string
+          format: uuid
+        status:
+          "$ref": "#/components/schemas/SubscriptionStatus"
+        price:
+          "$ref": "#/components/schemas/Money"
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        cancellationCutoff:
+          type: string
+          format: date
+          description: Last travel-local date on which the traveler may cancel
+            (start date minus 3 days).
+        paymentId:
+          type: string
+          format: uuid
+          nullable: true
+        reservationExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set while PENDING_PAYMENT.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+      - subscriptionId
+      - travelId
+      - travelTitle
+      - travelerId
+      - managerId
+      - status
+      - price
+      - startDate
+      - endDate
+      - cancellationCutoff
+      - paymentId
+      - reservationExpiresAt
+      - createdAt
+      - updatedAt
+    SubscriptionPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Subscription"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+    Subscriber:
+      type: object
+      additionalProperties: false
+      description: Safe profile summary; no contact or payment details.
+      properties:
+        subscriptionId:
+          type: string
+          format: uuid
+        travelerId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        memberSince:
+          type: string
+          format: date
+        completedTrips:
+          type: integer
+          minimum: 0
+        reportCount:
+          type: integer
+          minimum: 0
+          description: Upheld reports against this traveler.
+        status:
+          "$ref": "#/components/schemas/SubscriptionStatus"
+        subscribedAt:
+          type: string
+          format: date-time
+      required:
+      - subscriptionId
+      - travelerId
+      - displayName
+      - memberSince
+      - completedTrips
+      - reportCount
+      - status
+      - subscribedAt
+    SubscriberPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Subscriber"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+    RemovalRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+      required:
+      - reason
+    FeedbackCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        travelId:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          maxLength: 1000
+      required:
+      - travelId
+      - rating
+    Feedback:
+      type: object
+      additionalProperties: false
+      properties:
+        feedbackId:
+          type: string
+          format: uuid
+        travelId:
+          type: string
+          format: uuid
+        travelTitle:
+          type: string
+        managerId:
+          type: string
+          format: uuid
+        authorDisplayName:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - feedbackId
+      - travelId
+      - travelTitle
+      - managerId
+      - authorDisplayName
+      - rating
+      - comment
+      - createdAt
+    FeedbackPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Feedback"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+    ReportTargetType:
+      type: string
+      enum:
+      - TRAVEL_MANAGER
+      - TRAVELER
+      - TRAVEL
+    ReportStatus:
+      type: string
+      enum:
+      - OPEN
+      - IN_REVIEW
+      - RESOLVED
+      - DISMISSED
+    ReportCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        targetType:
+          "$ref": "#/components/schemas/ReportTargetType"
+        targetId:
+          type: string
+          format: uuid
+        category:
+          type: string
+          enum:
+          - FRAUD
+          - HARASSMENT
+          - SAFETY
+          - MISLEADING_LISTING
+          - INAPPROPRIATE_CONTENT
+          - OTHER
+        description:
+          type: string
+          minLength: 10
+          maxLength: 1000
+      required:
+      - targetType
+      - targetId
+      - category
+      - description
+    Report:
+      type: object
+      additionalProperties: false
+      properties:
+        reportId:
+          type: string
+          format: uuid
+        targetType:
+          "$ref": "#/components/schemas/ReportTargetType"
+        targetId:
+          type: string
+          format: uuid
+        category:
+          type: string
+        status:
+          "$ref": "#/components/schemas/ReportStatus"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - reportId
+      - targetType
+      - targetId
+      - category
+      - status
+      - createdAt
+    ModerationEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        adminId:
+          type: string
+          format: uuid
+        status:
+          "$ref": "#/components/schemas/ReportStatus"
+        note:
+          type: string
+        at:
+          type: string
+          format: date-time
+      required:
+      - adminId
+      - status
+      - note
+      - at
+    ReportDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        reportId:
+          type: string
+          format: uuid
+        reporterId:
+          type: string
+          format: uuid
+        targetType:
+          "$ref": "#/components/schemas/ReportTargetType"
+        targetId:
+          type: string
+          format: uuid
+        targetDisplayName:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        status:
+          "$ref": "#/components/schemas/ReportStatus"
+        assigneeId:
+          type: string
+          format: uuid
+          nullable: true
+        history:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ModerationEntry"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - reportId
+      - reporterId
+      - targetType
+      - targetId
+      - targetDisplayName
+      - category
+      - description
+      - status
+      - assigneeId
+      - history
+      - createdAt
+    ReportPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ReportDetail"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+    ModerationUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          "$ref": "#/components/schemas/ReportStatus"
+        assignToSelf:
+          type: boolean
+        note:
+          type: string
+          minLength: 3
+          maxLength: 1000
+      required:
+      - status
+      - note
+    FieldError:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+      required:
+      - field
+      - code
+      - message
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          example: CANCELLATION_CUTOFF_PASSED
+        message:
+          type: string
+        fieldErrors:
+          type: array
+          items:
+            "$ref": "#/components/schemas/FieldError"
+        traceId:
+          type: string
+      required:
+      - code
+      - message
+      - fieldErrors
+      - traceId

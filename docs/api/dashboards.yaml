@@ -1,0 +1,672 @@
+---
+openapi: 3.0.3
+info:
+  title: Dashboards, statistics and manager pages API
+  version: 0.1.0
+  description: 'Target contract for engagement-service read models (Phase 8). Figures
+    are projections built from subscription, payment, feedback and report events;
+    each response carries `asOf`, the time of the newest event included, and totals
+    must reconcile with the owning services (see docs/events.md). Money is reported
+    per currency and never converted. Months are calendar months in UTC.'
+servers:
+- url: http://localhost:8080
+  description: Loopback development gateway; deployment requires HTTPS.
+security:
+- bearerAuth: []
+paths:
+  "/api/dashboards/me":
+    get:
+      operationId: getMyStatistics
+      summary: Personal statistics of the caller
+      x-required-role: TRAVELER
+      responses:
+        '200':
+          description: The caller's statistics.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TravelerStatistics"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/managers/{managerId}":
+    get:
+      operationId: getManagerPage
+      summary: Public page of a travel manager
+      x-required-role: TRAVELER
+      description: Statistics, recent ratings and the number of upheld reports. Report
+        contents and reporters are never shown.
+      parameters:
+      - "$ref": "#/components/parameters/ManagerId"
+      responses:
+        '200':
+          description: The manager page.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ManagerPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/dashboards/manager":
+    get:
+      operationId: getManagerDashboard
+      summary: Dashboard of a travel manager
+      x-required-role: TRAVEL_MANAGER
+      description: A manager always receives their own dashboard; an admin may pass
+        `managerId` to view any manager's.
+      parameters:
+      - name: managerId
+        in: query
+        description: Admin only; ignored for managers.
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/Months"
+      responses:
+        '200':
+          description: The manager dashboard.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ManagerDashboard"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/dashboards/admin":
+    get:
+      operationId: getAdminDashboard
+      summary: Platform overview for admins
+      x-required-role: ADMIN
+      parameters:
+      - "$ref": "#/components/parameters/Months"
+      - name: top
+        in: query
+        description: Number of top managers and travels to include.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+      responses:
+        '200':
+          description: The admin dashboard.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminDashboard"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/dashboards/admin/managers":
+    get:
+      operationId: rankManagers
+      summary: Managers ranked by performance score
+      x-required-role: ADMIN
+      description: Highest score first; ties break on completed travels, then manager
+        ID. The score formula is in the ManagerRanking schema.
+      parameters:
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      responses:
+        '200':
+          description: Ranked managers.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ManagerRankingPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/dashboards/admin/travels":
+    get:
+      operationId: listTravelHistory
+      summary: Travel history with satisfaction figures
+      x-required-role: ADMIN
+      description: All travels that have started, most recent start first.
+      parameters:
+      - name: managerId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      responses:
+        '200':
+          description: Travel history.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TravelSummaryPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token checked at the gateway and in the receiving service.
+        Roles inherit, see docs/api/README.md.
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Months:
+      name: months
+      in: query
+      description: Number of recent calendar months, including the current one.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 24
+        default: 6
+    ManagerId:
+      name: managerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Invalid parameter (`VALIDATION_ERROR`).
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing, invalid, expired or revoked authentication.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Forbidden:
+      description: The caller's role is below the operation's required role.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    NotFound:
+      description: Unknown manager.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    Unavailable:
+      description: The projection store is unavailable (`DEPENDENCY_UNAVAILABLE`).
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+  schemas:
+    Money:
+      type: object
+      additionalProperties: false
+      properties:
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+      required:
+      - amountMinor
+      - currency
+    MonthlyIncome:
+      type: object
+      additionalProperties: false
+      description: Net income (payments minus refunds) per currency for one month.
+      properties:
+        month:
+          type: string
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+          example: 2026-10
+        amounts:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Money"
+      required:
+      - month
+      - amounts
+    PaymentMethodUsage:
+      type: object
+      additionalProperties: false
+      properties:
+        provider:
+          type: string
+          enum:
+          - STRIPE
+          - PAYPAL
+          - SIMULATED
+        payments:
+          type: integer
+          minimum: 0
+      required:
+      - provider
+      - payments
+    TravelerStatistics:
+      type: object
+      additionalProperties: false
+      properties:
+        completedTrips:
+          type: integer
+          minimum: 0
+        upcomingTrips:
+          type: integer
+          minimum: 0
+        cancellations:
+          type: integer
+          minimum: 0
+          description: Subscriptions the caller cancelled.
+        reportsFiled:
+          type: integer
+          minimum: 0
+        feedbackGiven:
+          type: integer
+          minimum: 0
+        preferredPaymentMethods:
+          type: array
+          description: Providers used, most used first.
+          items:
+            "$ref": "#/components/schemas/PaymentMethodUsage"
+        asOf:
+          type: string
+          format: date-time
+      required:
+      - completedTrips
+      - upcomingTrips
+      - cancellations
+      - reportsFiled
+      - feedbackGiven
+      - preferredPaymentMethods
+      - asOf
+    RatingSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        average:
+          type: number
+          format: float
+          minimum: 1
+          maximum: 5
+          nullable: true
+        count:
+          type: integer
+          minimum: 0
+      required:
+      - average
+      - count
+    PublicRating:
+      type: object
+      additionalProperties: false
+      description: A rating as shown publicly; the author is not identified.
+      properties:
+        travelTitle:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - travelTitle
+      - rating
+      - comment
+      - createdAt
+    ManagerPage:
+      type: object
+      additionalProperties: false
+      properties:
+        managerId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        memberSince:
+          type: string
+          format: date
+        completedTravels:
+          type: integer
+          minimum: 0
+        upcomingTravels:
+          type: integer
+          minimum: 0
+        totalTravelers:
+          type: integer
+          minimum: 0
+        rating:
+          "$ref": "#/components/schemas/RatingSummary"
+        recentRatings:
+          type: array
+          maxItems: 10
+          items:
+            "$ref": "#/components/schemas/PublicRating"
+        reportCount:
+          type: integer
+          minimum: 0
+          description: Upheld (RESOLVED) reports against this manager.
+        asOf:
+          type: string
+          format: date-time
+      required:
+      - managerId
+      - displayName
+      - memberSince
+      - completedTravels
+      - upcomingTravels
+      - totalTravelers
+      - rating
+      - recentRatings
+      - reportCount
+      - asOf
+    TravelSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        travelId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        managerId:
+          type: string
+          format: uuid
+        managerDisplayName:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        travelers:
+          type: integer
+          minimum: 0
+          description: Confirmed or completed subscriptions.
+        cancellations:
+          type: integer
+          minimum: 0
+        income:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Money"
+        rating:
+          "$ref": "#/components/schemas/RatingSummary"
+      required:
+      - travelId
+      - title
+      - managerId
+      - managerDisplayName
+      - startDate
+      - endDate
+      - travelers
+      - cancellations
+      - income
+      - rating
+    TravelSummaryPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/TravelSummary"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        asOf:
+          type: string
+          format: date-time
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      - asOf
+    ManagerDashboard:
+      type: object
+      additionalProperties: false
+      properties:
+        managerId:
+          type: string
+          format: uuid
+        incomeByMonth:
+          type: array
+          items:
+            "$ref": "#/components/schemas/MonthlyIncome"
+        totalTrips:
+          type: integer
+          minimum: 0
+        upcomingTrips:
+          type: integer
+          minimum: 0
+        totalTravelers:
+          type: integer
+          minimum: 0
+        cancellationRate:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        rating:
+          "$ref": "#/components/schemas/RatingSummary"
+        travels:
+          type: array
+          description: Per-travel figures, most recent start first.
+          items:
+            "$ref": "#/components/schemas/TravelSummary"
+        asOf:
+          type: string
+          format: date-time
+      required:
+      - managerId
+      - incomeByMonth
+      - totalTrips
+      - upcomingTrips
+      - totalTravelers
+      - cancellationRate
+      - rating
+      - travels
+      - asOf
+    ManagerRanking:
+      type: object
+      additionalProperties: false
+      description: 'score = 0.40 x rating + 0.30 x income + 0.20 x completed travels
+        + 0.10 x (1 - cancellation rate) - 0.15 x upheld reports, where each input
+        except the cancellation rate is normalized to 0..1 by dividing by the
+        highest value among all managers over the last 12 months. Income uses the
+        platform currency only.'
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+        managerId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        score:
+          type: number
+          format: double
+        organizedTravels:
+          type: integer
+          minimum: 0
+        income:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Money"
+        rating:
+          "$ref": "#/components/schemas/RatingSummary"
+        upheldReports:
+          type: integer
+          minimum: 0
+      required:
+      - rank
+      - managerId
+      - displayName
+      - score
+      - organizedTravels
+      - income
+      - rating
+      - upheldReports
+    ManagerRankingPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ManagerRanking"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        asOf:
+          type: string
+          format: date-time
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      - asOf
+    AdminDashboard:
+      type: object
+      additionalProperties: false
+      properties:
+        incomeByMonth:
+          type: array
+          items:
+            "$ref": "#/components/schemas/MonthlyIncome"
+        organizedTravels:
+          type: integer
+          minimum: 0
+          description: Travels that started within the selected months.
+        activeTravelers:
+          type: integer
+          minimum: 0
+        averageRating:
+          "$ref": "#/components/schemas/RatingSummary"
+        openReports:
+          type: integer
+          minimum: 0
+        topManagers:
+          type: array
+          items:
+            "$ref": "#/components/schemas/ManagerRanking"
+        topTravels:
+          type: array
+          description: Ranked by rating, then travelers.
+          items:
+            "$ref": "#/components/schemas/TravelSummary"
+        asOf:
+          type: string
+          format: date-time
+      required:
+      - incomeByMonth
+      - organizedTravels
+      - activeTravelers
+      - averageRating
+      - openReports
+      - topManagers
+      - topTravels
+      - asOf
+    FieldError:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+      required:
+      - field
+      - code
+      - message
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          example: DEPENDENCY_UNAVAILABLE
+        message:
+          type: string
+        fieldErrors:
+          type: array
+          items:
+            "$ref": "#/components/schemas/FieldError"
+        traceId:
+          type: string
+      required:
+      - code
+      - message
+      - fieldErrors
+      - traceId
