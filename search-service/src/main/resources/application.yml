@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: search-service
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8086}
+management:
+  server:
+    address: ${MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${MANAGEMENT_PORT:9086}
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  # Elasticsearch is only expected when the infra profile is active.
+  health:
+    elasticsearch:
+      enabled: false
+---
+spring:
+  config:
+    activate:
+      on-profile: infra
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://elasticsearch:9200}
+    username: ${ELASTICSEARCH_USERNAME:elastic}
+    password: ${ELASTICSEARCH_PASSWORD:change-me-elasticsearch}
+    connection-timeout: 2s
+    socket-timeout: 5s
+management:
+  health:
+    elasticsearch:
+      enabled: true

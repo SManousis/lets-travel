@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: engagement-service
+  autoconfigure:
+    exclude: org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration,org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8085}
+management:
+  server:
+    address: ${MANAGEMENT_ADDRESS:127.0.0.1}
+    port: ${MANAGEMENT_PORT:9085}
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+---
+spring:
+  config:
+    activate:
+      on-profile: infra
+  autoconfigure:
+    exclude: []
+  datasource:
+    url: ${ENGAGEMENT_DB_URL:jdbc:postgresql://postgres:5432/travel_engagement}
+    username: ${ENGAGEMENT_DB_USER:engagement_app}
+    password: ${ENGAGEMENT_DB_PASSWORD:change-me-engagement}
+    hikari:
+      connection-timeout: 5000
+      initialization-fail-timeout: 30000
+  flyway:
+    locations: classpath:db/migration

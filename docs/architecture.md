@@ -13,6 +13,8 @@ and [API contracts](api/README.md) for implementation scope.
 | User service | User profiles, travelers, user lifecycle coordination | 8082 / 9082 | `/api/users/**`, `/api/travelers/**` |
 | Travel service | Travels, destinations, ordered itineraries, participation | 8083 / 9083 | `/api/travels/**`, `/api/destinations/**` |
 | Payment service | Saved provider references, gateway settings, provider operations | 8084 / 9084 | `/api/payment-methods/**`, `/api/payment-gateways/**` |
+| Engagement service | Subscriptions, cancellation history, feedback, reports, dashboard projections (PostgreSQL `travel_engagement`) | 8085 / 9085 | Not routed yet |
+| Search service | Search/autocomplete API and the Elasticsearch travel index | 8086 / 9086 | Not routed yet |
 
 Local development binds application and management listeners to loopback. The
 gateway preserves the complete `/api` path. Deployment will expose only an HTTPS

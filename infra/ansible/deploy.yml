@@ -25,6 +25,8 @@
       AUTH_DB_PASSWORD: "{{ auth_db_password | default(lookup('ansible.builtin.env', 'AUTH_DB_PASSWORD'), true) }}"
       USERS_DB_PASSWORD: "{{ users_db_password | default(lookup('ansible.builtin.env', 'USERS_DB_PASSWORD'), true) }}"
       PAYMENTS_DB_PASSWORD: "{{ payments_db_password | default(lookup('ansible.builtin.env', 'PAYMENTS_DB_PASSWORD'), true) }}"
+      ENGAGEMENT_DB_PASSWORD: "{{ engagement_db_password | default(lookup('ansible.builtin.env', 'ENGAGEMENT_DB_PASSWORD'), true) }}"
+      ELASTICSEARCH_PASSWORD: "{{ elasticsearch_password | default(lookup('ansible.builtin.env', 'ELASTICSEARCH_PASSWORD'), true) }}"
       NEO4J_PASSWORD: "{{ neo4j_password | default(lookup('ansible.builtin.env', 'NEO4J_PASSWORD'), true) }}"
       AUTH_TOKEN_SECRET: "{{ auth_token_secret | default(lookup('ansible.builtin.env', 'AUTH_TOKEN_SECRET'), true) }}"
       ADMIN_USERNAME: "{{ admin_username | default(lookup('ansible.builtin.env', 'ADMIN_USERNAME'), true) }}"
@@ -53,6 +55,7 @@
           - >-
             item.value not in ['change-me-local-only', 'change-me-auth',
             'change-me-users', 'change-me-payments', 'change-me-neo4j',
+            'change-me-engagement', 'change-me-elasticsearch',
             'change-me-admin', 'change-me-internal',
             'replace-with-at-least-32-random-characters']
           - item.value is not search('[\x0a\x0d]')
@@ -171,6 +174,35 @@
         password: "{{ lookup('ansible.builtin.env', 'REGISTRY_PASSWORD') }}"
       no_log: true
 
+    - name: Start PostgreSQL before the application services
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}/compose"
+        files:
+          - compose.yml
+          - compose.release.yml
+          - compose.secure.yml
+        env_files:
+          - "{{ app_dir }}/.env"
+        services:
+          - postgres
+        state: present
+        pull: always
+        build: never
+        wait: true
+        wait_timeout: 120
+
+    # PostgreSQL runs its init scripts only on an empty volume. Re-running the idempotent
+    # script creates databases and roles added since the volume was first initialized.
+    - name: Create missing service databases and roles
+      ansible.builtin.command:
+        cmd: >-
+          docker compose --env-file {{ app_dir }}/.env
+          -f compose.yml -f compose.release.yml -f compose.secure.yml
+          exec -T postgres bash /docker-entrypoint-initdb.d/001-databases.sh
+        chdir: "{{ app_dir }}/compose"
+      register: database_bootstrap
+      changed_when: "'CREATE DATABASE' in database_bootstrap.stdout or 'CREATE ROLE' in database_bootstrap.stdout"
+
     - name: Pull and reconcile the exact published release
       community.docker.docker_compose_v2:
         # Relative bind mounts in the manifests (../tls/certs, ../proxy, ...) resolve
@@ -186,7 +218,7 @@
         pull: always
         build: never
         wait: true
-        wait_timeout: 180
+        wait_timeout: 300
 
     - name: Wait for HTTPS dashboard readiness
       ansible.builtin.uri:
