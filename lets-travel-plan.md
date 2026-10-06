@@ -101,8 +101,8 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 
 - [ ] Run the existing Maven, UI, API-lint, and Compose configuration checks and record the real baseline result.
 - [ ] Inventory existing implemented behavior separately from stubs, documentation, and unverified infrastructure claims.
-- [ ] Add `engagement-service` and `search-service` to the Maven reactor with startup tests, health probes, Dockerfiles, and private management ports.
-- [ ] Add PostgreSQL ownership/migrations for engagement data and Elasticsearch configuration with a pinned compatible version.
+- [x] Add `engagement-service` and `search-service` to the Maven reactor with startup tests, health probes, Dockerfiles, and private management ports.
+- [x] Add PostgreSQL ownership/migrations for engagement data and Elasticsearch configuration with a pinned compatible version.
 - [ ] Update architecture and data-model documentation with service ownership, allowed dependencies, and prohibited direct database access.
 - [ ] Define versioned OpenAPI contracts for subscriptions, feedback, reports, search, autocomplete, recommendations, dashboards, and the public manager page.
 - [ ] Define standard pagination, validation errors, trace IDs, idempotency keys, and dependency-unavailable responses across the new APIs.

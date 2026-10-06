@@ -63,8 +63,9 @@ records the architecture baseline without claiming an unbuilt stack is verified.
 
 | Component | Selected baseline | Purpose / compatibility decision |
 | --- | --- | --- |
-| PostgreSQL | 17.11 | Separate owned relational databases for auth, users and payments; use a separate database/identity for CI tools |
+| PostgreSQL | 17.11 | Separate owned relational databases for auth, users, payments and engagement; use a separate database/identity for CI tools |
 | Neo4j | 2026.08.1 Community | Travel graph transactions and relationships; verify the Boot-managed driver's server compatibility in Phase 2 |
+| Elasticsearch | 9.4.5 | Search/autocomplete read model owned by `search-service`; matches the Boot-managed `elasticsearch-java` 9.4.5 client. Single node with security on; HTTP TLS and a least-privilege service user are Phase 11 work |
 | Docker Engine | 29.8.0 | Linux deployment runtime; local Phase 1 host builds do not require Docker |
 | Docker Compose | 5.5.1 | Declarative local/deployment service definitions using the Compose specification |
 | Ansible Core | 2.21 release line, Python 3.12–3.14 controller | Repeatable provisioning; pin the then-current patch and collections in Phase 10 |

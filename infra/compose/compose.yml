@@ -10,6 +10,7 @@ services:
       AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-change-me-auth}
       USERS_DB_PASSWORD: ${USERS_DB_PASSWORD:-change-me-users}
       PAYMENTS_DB_PASSWORD: ${PAYMENTS_DB_PASSWORD:-change-me-payments}
+      ENGAGEMENT_DB_PASSWORD: ${ENGAGEMENT_DB_PASSWORD:-change-me-engagement}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ../postgres/init:/docker-entrypoint-initdb.d:ro
@@ -37,6 +38,26 @@ services:
       interval: 10s
       timeout: 5s
       retries: 18
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.5
+    environment:
+      discovery.type: single-node
+      ELASTIC_PASSWORD: ${ELASTICSEARCH_PASSWORD:-change-me-elasticsearch}
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      # Avoids raising vm.max_map_count on Docker Desktop hosts.
+      node.store.allow_mmap: "false"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -u elastic:$${ELASTIC_PASSWORD} 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
 
   auth-service:
     build: ../../auth-service
@@ -125,6 +146,40 @@ services:
       timeout: 5s
       retries: 18
 
+  engagement-service:
+    build: ../../engagement-service
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      MANAGEMENT_ADDRESS: 0.0.0.0
+      SPRING_PROFILES_ACTIVE: infra
+      ENGAGEMENT_DB_PASSWORD: ${ENGAGEMENT_DB_PASSWORD:-change-me-engagement}
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backend]
+    expose: [8085, 9085]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9085/actuator/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  search-service:
+    build: ../../search-service
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      MANAGEMENT_ADDRESS: 0.0.0.0
+      SPRING_PROFILES_ACTIVE: infra
+      ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:-change-me-elasticsearch}
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+    networks: [backend]
+    expose: [8086, 9086]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9086/actuator/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
   api-gateway:
     build: ../../api-gateway
     environment:
@@ -165,3 +220,4 @@ volumes:
   postgres-data:
   neo4j-data:
   neo4j-logs:
+  elasticsearch-data:

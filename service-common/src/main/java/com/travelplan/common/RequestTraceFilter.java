@@ -1,4 +1,4 @@
-package com.travelplan.users;
+package com.travelplan.common;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -12,22 +12,31 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-@Component
+/**
+ * Propagates a safe X-Request-ID and writes one structured log line per request.
+ * Never logs headers, so bearer tokens cannot leak into logs.
+ */
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestTraceFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(RequestTraceFilter.class);
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
-    private static final String INSTANCE_ID = instanceId();
 
-    private static String instanceId() {
-        String configured = System.getenv("SERVICE_INSTANCE_ID");
-        if (configured != null && SAFE_ID.matcher(configured).matches()) {
-            return configured;
-        }
-        return UUID.randomUUID().toString();
+    private final String serviceName;
+    private final String instanceId;
+
+    public RequestTraceFilter(String serviceName, String configuredInstanceId) {
+        this.serviceName = serviceName;
+        this.instanceId = isSafe(configuredInstanceId) ? configuredInstanceId : UUID.randomUUID().toString();
+    }
+
+    static boolean isSafe(String id) {
+        return id != null && SAFE_ID.matcher(id).matches();
+    }
+
+    String instanceId() {
+        return instanceId;
     }
 
     @Override
@@ -39,14 +48,13 @@ public class RequestTraceFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String incoming = request.getHeader("X-Request-ID");
-        String id = incoming != null && SAFE_ID.matcher(incoming).matches()
-                ? incoming : UUID.randomUUID().toString();
+        String id = isSafe(incoming) ? incoming : UUID.randomUUID().toString();
         response.setHeader("X-Request-ID", id);
         try {
             chain.doFilter(request, response);
         } finally {
-            log.info("{\"timestamp\":\"{}\",\"service\":\"user-service\",\"instanceId\":\"{}\",\"severity\":\"INFO\",\"traceId\":\"{}\",\"operation\":\"{}\",\"status\":\"{}\"}",
-                    Instant.now(), INSTANCE_ID, id, request.getMethod() + " " + request.getRequestURI(), response.getStatus());
+            log.info("{\"timestamp\":\"{}\",\"service\":\"{}\",\"instanceId\":\"{}\",\"severity\":\"INFO\",\"traceId\":\"{}\",\"operation\":\"{}\",\"status\":\"{}\"}",
+                    Instant.now(), serviceName, instanceId, id, request.getMethod() + " " + request.getRequestURI(), response.getStatus());
         }
     }
 }

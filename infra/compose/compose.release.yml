@@ -12,6 +12,12 @@ services:
   payment-service:
     image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}/payment-service:${RELEASE_TAG:?Set RELEASE_TAG}
     build: !reset null
+  engagement-service:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}/engagement-service:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: !reset null
+  search-service:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}/search-service:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: !reset null
   api-gateway:
     image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}/api-gateway:${RELEASE_TAG:?Set RELEASE_TAG}
     build: !reset null

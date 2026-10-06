@@ -15,11 +15,14 @@
   <name>Travel Plan</name>
   <description>Travel management administration services</description>
   <modules>
+    <module>service-common</module>
     <module>auth-service</module>
     <module>user-service</module>
     <module>lets-travel</module>
     <module>payment-service</module>
     <module>api-gateway</module>
+    <module>engagement-service</module>
+    <module>search-service</module>
   </modules>
   <properties>
     <java.version>21</java.version>

@@ -69,7 +69,7 @@ pipeline {
             source_date_epoch=$(git show -s --format=%ct "$RELEASE_TAG")
             printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USER" --password-stdin
             trap 'docker logout "$REGISTRY_HOST" >/dev/null 2>&1 || true' EXIT
-            for service in auth-service user-service travel-service payment-service api-gateway admin-ui; do
+            for service in auth-service user-service travel-service payment-service engagement-service search-service api-gateway admin-ui; do
               # travel-service sources live in the lets-travel/ directory.
               context=$service
               [ "$service" = travel-service ] && context=lets-travel
@@ -77,7 +77,7 @@ pipeline {
                 --label "org.opencontainers.image.revision=$RELEASE_TAG" \
                 -t "$IMAGE_PREFIX/$service:ci-$BUILD_NUMBER-$RELEASE_TAG" "$context"
             done
-            for service in auth-service user-service travel-service payment-service api-gateway admin-ui; do
+            for service in auth-service user-service travel-service payment-service engagement-service search-service api-gateway admin-ui; do
               target="$IMAGE_PREFIX/$service:$RELEASE_TAG"
               candidate="$IMAGE_PREFIX/$service:ci-$BUILD_NUMBER-$RELEASE_TAG"
               if docker pull "$target" >/dev/null 2>&1; then
