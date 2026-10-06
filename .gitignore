@@ -12,3 +12,5 @@
 .superpowers/
 infra/tls/certs/
 .ci-secrets/
+pass.md
+

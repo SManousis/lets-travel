@@ -1,5 +1,5 @@
 pipeline {
-  agent { label 'travel-plan-ci' }
+  agent { label 'lets-travel-ci' }
   options { timestamps(); disableConcurrentBuilds() }
 
   stages {
@@ -40,7 +40,7 @@ pipeline {
     }
     stage('SonarQube analysis') {
       steps {
-        withSonarQubeEnv('travel-plan-sonarqube') {
+        withSonarQubeEnv('lets-travel-sonarqube') {
           sh 'sonar-scanner'
         }
       }
@@ -61,7 +61,7 @@ pipeline {
           }
           env.RELEASE_TAG = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
         }
-        withCredentials([usernamePassword(credentialsId: 'travel-plan-registry',
+        withCredentials([usernamePassword(credentialsId: 'lets-travel-registry',
           usernameVariable: 'REGISTRY_USER', passwordVariable: 'REGISTRY_PASSWORD')]) {
           sh '''
             set -eu
@@ -70,9 +70,12 @@ pipeline {
             printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USER" --password-stdin
             trap 'docker logout "$REGISTRY_HOST" >/dev/null 2>&1 || true' EXIT
             for service in auth-service user-service travel-service payment-service api-gateway admin-ui; do
+              # travel-service sources live in the lets-travel/ directory.
+              context=$service
+              [ "$service" = travel-service ] && context=lets-travel
               docker build --build-arg "SOURCE_DATE_EPOCH=$source_date_epoch" \
                 --label "org.opencontainers.image.revision=$RELEASE_TAG" \
-                -t "$IMAGE_PREFIX/$service:ci-$BUILD_NUMBER-$RELEASE_TAG" "$service"
+                -t "$IMAGE_PREFIX/$service:ci-$BUILD_NUMBER-$RELEASE_TAG" "$context"
             done
             for service in auth-service user-service travel-service payment-service api-gateway admin-ui; do
               target="$IMAGE_PREFIX/$service:$RELEASE_TAG"
@@ -104,10 +107,10 @@ pipeline {
           }
         }
         withCredentials([
-          usernamePassword(credentialsId: 'travel-plan-registry',
+          usernamePassword(credentialsId: 'lets-travel-registry',
             usernameVariable: 'REGISTRY_USER', passwordVariable: 'REGISTRY_PASSWORD'),
-          sshUserPrivateKey(credentialsId: 'travel-plan-deploy-ssh', keyFileVariable: 'DEPLOY_SSH_KEY'),
-          file(credentialsId: 'travel-plan-release-env', variable: 'RELEASE_ENV_FILE')
+          sshUserPrivateKey(credentialsId: 'lets-travel-deploy-ssh', keyFileVariable: 'DEPLOY_SSH_KEY'),
+          file(credentialsId: 'lets-travel-release-env', variable: 'RELEASE_ENV_FILE')
         ]) {
           sh '''
             set -eu

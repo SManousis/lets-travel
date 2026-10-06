@@ -1,9 +1,9 @@
 ---
-- name: Deploy an immutable Travel Plan release
-  hosts: travel_plan
+- name: Deploy an immutable Let's Travel release
+  hosts: lets_travel
   become: true
   vars:
-    app_dir: /opt/travel-plan
+    app_dir: /opt/lets-travel
     required_tls_files:
       - dev-ca.crt
       - gateway.crt

@@ -1,6 +1,6 @@
 ---
-- name: Prepare a Linux host for Travel Plan releases
-  hosts: travel_plan
+- name: Prepare a Linux host for Let's Travel releases
+  hosts: lets_travel
   become: true
   gather_facts: true
   tasks:
@@ -87,7 +87,7 @@
 
     - name: Create the release directory
       ansible.builtin.file:
-        path: /opt/travel-plan
+        path: /opt/lets-travel
         state: directory
         owner: root
         group: root

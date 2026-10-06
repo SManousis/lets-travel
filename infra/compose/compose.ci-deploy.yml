@@ -11,13 +11,13 @@ services:
     environment:
       REGISTRY_HTPASSWD: ${REGISTRY_HTPASSWD:?Set REGISTRY_HTPASSWD in .env.ci-agent}
       REGISTRY_AUTH: htpasswd
-      REGISTRY_AUTH_HTPASSWD_REALM: travel-plan
+      REGISTRY_AUTH_HTPASSWD_REALM: lets-travel
       REGISTRY_AUTH_HTPASSWD_PATH: /etc/docker/registry/htpasswd
     volumes:
       - registry-data:/var/lib/registry
 
   deploy-host:
-    image: travel-plan-deploy-host:local
+    image: lets-travel-deploy-host:local
     build:
       context: ../ci-deploy
     privileged: true
@@ -31,13 +31,13 @@ services:
       - 127.0.0.1:8443:8443
     volumes:
       - deploy-host-docker:/var/lib/docker
-      - deploy-host-app:/opt/travel-plan
+      - deploy-host-app:/opt/lets-travel
 
   pr-agent:
     environment:
       # Image builds and pushes run on the deployment host's engine.
       # Release secrets are not set here: service tests read the same variable names.
-      # The deploy stage loads them from the travel-plan-release-env Jenkins credential.
+      # The deploy stage loads them from the lets-travel-release-env Jenkins credential.
       DOCKER_HOST: tcp://deploy-host:2375
     depends_on:
       - deploy-host

@@ -25,7 +25,7 @@
     <data>
       <jenkins.branch.BranchSource>
         <source class="org.jenkinsci.plugin.gitea.GiteaSCMSource" plugin="gitea@283.v14b_179495971">
-          <id>travel-plan-gitea</id>
+          <id>lets-travel-gitea</id>
           <serverUrl>https://platform.zone01.gr/git</serverUrl>
           <repoOwner>pkerasid</repoOwner>
           <repository>lets-travel</repository>
