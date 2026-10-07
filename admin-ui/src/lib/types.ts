@@ -25,3 +25,50 @@ export type PaymentMethod = {
   displayLabel: string; isDefault: boolean; status: "PENDING" | "ACTIVE" | "FAILED" | "DELETION_PENDING";
   displayMetadata: string | null; failureCode: string | null; createdAt: string;
 };
+
+/** A travel as travel-service returns it since Phase 2 (travelers only see bookable ones). */
+export type TravelOffer = {
+  id: string; managerId: string; name: string; description: string; startDate: string; endDate: string;
+  durationDays: number; capacity: number; price: number; currency: string;
+  status: "DRAFT" | "PUBLISHED" | "UNPUBLISHED" | "CANCELLED";
+  participantCount: number; remainingCapacity: number; bookable: boolean; timeZone: string;
+};
+
+export type SubscriptionStatus = "PENDING_PAYMENT" | "CONFIRMED" | "PAYMENT_FAILED"
+  | "CANCELLED_BY_TRAVELER" | "CANCELLED_BY_MANAGER" | "COMPLETED";
+
+export type Subscription = {
+  subscriptionId: string; travelId: string; travelTitle: string; travelerId: string; managerId: string;
+  status: SubscriptionStatus; price: { amountMinor: number; currency: string };
+  startDate: string; endDate: string; timeZone: string; cancellationCutoff: string; travelerMayCancel: boolean;
+  paymentId: string | null; reservationExpiresAt: string | null; cancellationReason: string | null;
+  cancelledAt: string | null; createdAt: string; updatedAt: string;
+};
+
+/** Safe profile summary a travel's manager sees; no contact details. */
+export type Subscriber = {
+  subscriptionId: string; travelerId: string; displayName: string; memberSince: string | null;
+  completedTrips: number; reportCount: number; status: SubscriptionStatus; subscribedAt: string;
+  cancellationReason: string | null; cancelledAt: string | null;
+};
+
+/** Pagination used by the engagement API. */
+export type ContractPage<T> = { items: T[]; page: number; size: number; totalElements: number; totalPages: number };
+
+export type SubscriptionPaymentState = "PROCESSING" | "REQUIRES_RECONCILIATION" | "SUCCEEDED" | "FAILED"
+  | "REFUND_PENDING" | "REFUNDED";
+
+/** A subscription payment as payment-service returns it: safe display data only, never card details. */
+export type SubscriptionPayment = {
+  paymentId: string; subscriptionId: string; amountMinor: number; currency: string;
+  provider: "STRIPE" | "PAYPAL" | "TEST"; methodDisplay: string; state: SubscriptionPaymentState;
+  failureCode: string | null; message: string; refundReason: string | null; createdAt: string; updatedAt: string;
+};
+
+export type TestOutcome = "APPROVE" | "DECLINE" | "TIMEOUT";
+
+export type PaymentOptions = {
+  methods: { id: string; provider: "STRIPE" | "PAYPAL"; displayLabel: string; displayMetadata: string | null;
+    isDefault: boolean; available: boolean }[];
+  testProviderEnabled: boolean;
+};

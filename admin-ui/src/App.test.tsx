@@ -97,6 +97,10 @@ it("shows travelers their account instead of the admin workspace", async () => {
       return json({ userId: "t1", email: "ada@example.com", firstName: "Ada", lastName: "Lovelace",
         role: "TRAVELER", status: "ACTIVE", memberSince: "2026-10-01T00:00:00Z" });
     }
+    if (String(input).startsWith("/api/travels?")) return json({ items: [], page: 0, size: 50, total: 0 });
+    if (String(input).startsWith("/api/subscriptions?")) {
+      return json({ items: [], page: 0, size: 100, totalElements: 0, totalPages: 0 });
+    }
     throw new Error(`Unexpected request: ${String(input)}`);
   }));
 
@@ -105,6 +109,8 @@ it("shows travelers their account instead of the admin workspace", async () => {
   expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
   expect(screen.getAllByText("Traveler").length).toBeGreaterThan(0);
   expect(screen.queryByRole("navigation", { name: "Admin sections" })).not.toBeInTheDocument();
+  expect(await screen.findByText("You have no subscriptions yet.")).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Subscribers" })).not.toBeInTheDocument();
 });
 
 it("lets a visitor sign up and then sign in with the new email", async () => {
