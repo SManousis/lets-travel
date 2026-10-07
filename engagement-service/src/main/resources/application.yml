@@ -16,6 +16,8 @@ services:
     url: ${USER_SERVICE_URL:http://127.0.0.1:8082}
   travel:
     url: ${TRAVEL_SERVICE_URL:http://127.0.0.1:8083}
+  payments:
+    url: ${PAYMENT_SERVICE_URL:http://127.0.0.1:8084}
 management:
   server:
     address: ${MANAGEMENT_ADDRESS:127.0.0.1}

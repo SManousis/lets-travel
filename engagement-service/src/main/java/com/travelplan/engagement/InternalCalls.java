@@ -1,5 +1,9 @@
 package com.travelplan.engagement;
 
+import java.io.IOException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -18,6 +22,18 @@ final class InternalCalls {
             if (incoming != null && SAFE_ID.matcher(incoming).matches()) return incoming;
         }
         return UUID.randomUUID().toString();
+    }
+
+    /** Sends a request; an unreachable dependency becomes DependencyUnavailable (503). */
+    static HttpResponse<String> send(HttpClient client, HttpRequest request) {
+        try {
+            return client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException ex) {
+            throw new ManagerPageService.DependencyUnavailable();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new ManagerPageService.DependencyUnavailable();
+        }
     }
 
     static String required(JsonNode body, String field) {

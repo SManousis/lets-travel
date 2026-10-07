@@ -19,6 +19,7 @@ public class SecurityConfig {
         return ServiceSecurity.apply(http, tokens)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**", "/error", "/internal/**").permitAll()
+                        .requestMatchers("/api/managed-travels/**").hasRole("TRAVEL_MANAGER")
                         .requestMatchers("/api/**").hasRole("TRAVELER")
                         .anyRequest().denyAll())
                 .build();
