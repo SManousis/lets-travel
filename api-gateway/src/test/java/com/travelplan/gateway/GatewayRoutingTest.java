@@ -33,7 +33,7 @@ class GatewayRoutingTest {
     private static final Map<String, HttpServer> UPSTREAMS = Map.of(
             "auth", upstream("auth"), "users", upstream("users"),
             "travel", upstream("travel"), "payments", upstream("payments"),
-            "engagement", upstream("engagement"));
+            "engagement", upstream("engagement"), "search", upstream("search"));
     private static final HttpServer VALIDATOR = validator();
     private static final AtomicReference<String> VALIDATION_REQUEST_ID = new AtomicReference<>();
 
@@ -68,13 +68,24 @@ class GatewayRoutingTest {
             "POST, /api/subscriptions/123/cancellation, engagement",
             "GET, /api/managed-travels/123/subscribers, engagement",
             "POST, /api/managed-travels/123/subscribers/456/removal, engagement",
+            "POST, /api/feedback, engagement",
+            "GET, /api/feedback, engagement",
+            "GET, /api/feedback/mine, engagement",
+            "POST, /api/reports, engagement",
+            "GET, /api/reports, engagement",
+            "GET, /api/admin/reports, engagement",
+            "PATCH, /api/admin/reports/123, engagement",
             "POST, /api/payment-methods, payments",
             "POST, /api/subscription-payments, payments",
             "GET, /api/subscription-payments/123, payments",
             "GET, /api/payment-options, payments",
             "POST, /api/payment-webhooks/stripe, payments",
             "POST, /api/payment-webhooks/test, payments",
-            "DELETE, /api/payment-gateways/123, payments"
+            "DELETE, /api/payment-gateways/123, payments",
+            "GET, /api/search/travels, search",
+            "GET, /api/search/autocomplete, search",
+            "GET, /api/search/admin/status, search",
+            "POST, /api/search/admin/reindex, search"
     })
     void forwardsToDomainOwnerPreservingRequest(String method, String path, String owner) throws Exception {
         String fullPath = path + "?page=1&size=20";
@@ -141,7 +152,8 @@ class GatewayRoutingTest {
     @CsvSource({"/api/unknown", "/api/users-extra", "/internal/cleanup", "/actuator/env", "/api/managers-extra",
             "/internal/managers/123", "/internal/managers/123/travel-statistics", "/api/subscriptions-extra",
             "/internal/subscriptions/123/payment-outcome",
-            "/internal/subscriptions/123/refund", "/internal/subscriptions/123", "/api/payment-webhooks/paypal", "/internal/travels/123/reservations", "/internal/users/123/summary"})
+            "/internal/subscriptions/123/refund", "/internal/subscriptions/123", "/api/payment-webhooks/paypal", "/internal/travels/123/reservations", "/internal/users/123/summary",
+            "/internal/search/index/travels/123", "/internal/search/travels", "/internal/search/travels/123", "/api/search-extra", "/api/feedback-extra", "/api/reports-extra", "/api/admin", "/api/admin/users"})
     void doesNotRouteUnownedOrPrivatePaths(String path) throws Exception {
         var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .timeout(Duration.ofSeconds(30)).GET();
