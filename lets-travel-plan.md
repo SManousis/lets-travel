@@ -71,9 +71,9 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 
 ## Phase overview
 
-- [ ] Phase 0 — Baseline verification and architecture contracts
-- [ ] Phase 1 — Roles, identities, and authorization
-- [ ] Phase 2 — Manager-owned travel offerings and public profiles
+- [x] Phase 0 — Baseline verification and architecture contracts
+- [x] Phase 1 — Roles, identities, and authorization
+- [x] Phase 2 — Manager-owned travel offerings and public profiles (one item deferred to Phase 3: protecting confirmed subscriptions)
 - [ ] Phase 3 — Subscriptions, subscriber management, and cancellation policy
 - [ ] Phase 4 — Secure subscription payments
 - [ ] Phase 5 — Elasticsearch search and autocomplete
@@ -110,7 +110,7 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 - [x] Define per-service outbox/inbox, retry, dead-letter/reconciliation, and full read-model rebuild procedures.
 - [x] Document the role-capability matrix and data flow from a travel write to Neo4j, Elasticsearch, engagement projections, and dashboards.
 - [x] Add architecture tests or dependency rules that prevent one service from importing another service's domain classes.
-- [ ] **Completion gate:** A clean checkout builds, all modules start, OpenAPI lint passes, Compose resolves, and the team can explain service ownership and cross-store consistency from the documentation.
+- [x] **Completion gate:** A clean checkout builds, all modules start, OpenAPI lint passes, Compose resolves, and the team can explain service ownership and cross-store consistency from the documentation. Evidence: `docs/audit/phase-2-verification-2026-10-07.md` (runtime startup).
 
 ## Phase 1 — Roles, identities, and authorization
 

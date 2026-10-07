@@ -39,6 +39,21 @@ Key test classes:
   - that destination writes need `ADMIN`;
   - that `/internal/**` is not routed.
 
+## Runtime startup (Phase 0 completion gate)
+
+`docker compose -p lets-travel-gate -f infra/compose/compose.yml up -d --build --wait` started all
+11 containers healthy: admin-ui, api-gateway, auth-service, user-service, travel-service,
+payment-service, engagement-service, search-service, postgres, neo4j and elasticsearch.
+
+The smoke checks then gave these results:
+
+- Through the gateway, `/api/travels` and `/api/managers/{id}` without a token returned `401`.
+- `/internal/managers/x` returned `404`, so it is not routed.
+- A bad login returned `401`.
+- The admin UI returned `200`.
+
+The stack was stopped afterwards with `down`.
+
 ## Two-manager audit scenario
 
 Prerequisites: the stack is running (`docker compose -f infra/compose/compose.yml up -d`),
@@ -63,7 +78,7 @@ setup for each of them. Sign in to get the tokens `$ADMIN`, `$A`, `$B` and `$T` 
 
 ## Not verified here
 
-- The running Compose stack was not started. The scenario above is the manual
-  runbook, and its behavior is covered by the automated tests listed.
+- The two-manager scenario was not run by hand against the stack. Its behavior is
+  covered by the automated tests listed.
 - Protecting confirmed subscriptions from invalidating edits depends on
   subscriptions, which arrive in Phase 3.
