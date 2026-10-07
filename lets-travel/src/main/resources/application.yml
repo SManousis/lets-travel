@@ -13,6 +13,9 @@ auth:
 services:
   users:
     url: ${USER_SERVICE_URL:http://127.0.0.1:8082}
+  # search-service is told about every travel change; empty disables the notifications.
+  search:
+    url: ${SEARCH_SERVICE_URL:}
 security:
   token-secret: ${AUTH_TOKEN_SECRET:replace-with-at-least-32-random-characters}
   internal-service-token: ${AUTH_INTERNAL_SERVICE_TOKEN:change-me-internal}

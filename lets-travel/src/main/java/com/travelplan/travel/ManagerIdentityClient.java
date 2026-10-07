@@ -67,7 +67,7 @@ final class ManagerIdentityClient {
         return value.asString();
     }
 
-    private static String requestId() {
+    static String requestId() {
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
             String incoming = attributes.getRequest().getHeader("X-Request-ID");
             if (incoming != null && SAFE_REQUEST_ID.matcher(incoming).matches()) return incoming;

@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import org.neo4j.driver.Driver;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ public class TravelStore {
     private final Map<UUID, Destination> destinations = new ConcurrentHashMap<>();
     private final Map<UUID, Travel> travels = new ConcurrentHashMap<>();
     private final Set<UUID> removedTravelerIds = ConcurrentHashMap.newKeySet();
+    private Consumer<UUID> searchIndex = id -> { };
 
     public TravelStore() { this(Clock.systemUTC()); }
 
@@ -35,6 +37,12 @@ public class TravelStore {
         this.policy = new TravelPolicy(clock);
         Driver driver = provider.getIfAvailable();
         graph = driver == null ? null : new Neo4jTravelRepository(driver);
+    }
+
+    /** Optional so plain unit tests can build a store without the notifier. */
+    @Autowired(required = false)
+    void searchIndexNotifier(SearchIndexNotifier notifier) {
+        this.searchIndex = notifier::travelChanged;
     }
 
     public List<Destination> destinations() {
@@ -110,9 +118,9 @@ public class TravelStore {
         validate(start, end, stops, activities, stays, transports);
         Travel result = new Travel(UUID.randomUUID(), name, start, end, duration(start, end), orderedStops(stops),
                 List.copyOf(activities), List.copyOf(stays), List.copyOf(transports), Set.of(), Instant.now());
-        if (graph != null) return graph.save(result);
+        if (graph != null) return changed(graph.save(result));
         travels.put(result.id(), result);
-        return result;
+        return changed(result);
     }
 
     public Travel create(UUID managerId, String name, String description, LocalDate start, LocalDate end,
@@ -132,9 +140,9 @@ public class TravelStore {
                 copy(activities), copy(stays), copy(transports), Set.of(), now, now, timeZone);
         validateDestinations(result.stops());
         policy.validateDraft(result);
-        if (graph != null) return graph.save(result);
+        if (graph != null) return changed(graph.save(result));
         travels.put(result.id(), result);
-        return result;
+        return changed(result);
     }
 
     public synchronized Travel update(UUID id, String name, LocalDate start, LocalDate end, List<Stop> stops,
@@ -143,9 +151,9 @@ public class TravelStore {
         validate(start, end, stops, activities, stays, transports);
         Travel result = new Travel(id, name, start, end, duration(start, end), orderedStops(stops),
                 List.copyOf(activities), List.copyOf(stays), List.copyOf(transports), old.travelerIds(), old.createdAt());
-        if (graph != null) return graph.update(result);
+        if (graph != null) return changed(graph.update(result));
         travels.put(id, result);
-        return result;
+        return changed(result);
     }
 
     public synchronized Travel update(UUID id, String name, String description, LocalDate start, LocalDate end,
@@ -179,9 +187,9 @@ public class TravelStore {
                 copy(stays), copy(transports), old.travelerIds(), old.createdAt(), clock.instant(), zone);
         validateDestinations(result.stops());
         policy.validateDraft(result);
-        if (graph != null) return graph.update(result);
+        if (graph != null) return changed(graph.update(result));
         travels.put(id, result);
-        return result;
+        return changed(result);
     }
 
     public synchronized Travel publish(UUID id) {
@@ -189,9 +197,9 @@ public class TravelStore {
         if (old.status() == Status.PUBLISHED) return old;
         policy.validateForPublication(old);
         Travel result = withLifecycle(old, Status.PUBLISHED);
-        if (graph != null) return graph.update(result);
+        if (graph != null) return changed(graph.update(result));
         travels.put(id, result);
-        return result;
+        return changed(result);
     }
 
     public synchronized Travel unpublish(UUID id) {
@@ -199,28 +207,31 @@ public class TravelStore {
         if (old.status() == Status.UNPUBLISHED || old.status() == Status.DRAFT) return old;
         if (old.status() == Status.CANCELLED) throw new Conflict("TRAVEL_NOT_EDITABLE");
         Travel result = withLifecycle(old, Status.UNPUBLISHED);
-        if (graph != null) return graph.update(result);
+        if (graph != null) return changed(graph.update(result));
         travels.put(id, result);
-        return result;
+        return changed(result);
     }
 
     public synchronized Travel addParticipant(UUID id, UUID traveler) {
-        if (graph != null) return graph.addParticipant(id, traveler);
+        if (graph != null) return changed(graph.addParticipant(id, traveler));
         if (removedTravelerIds.contains(traveler)) throw new Conflict("TRAVELER_REMOVED");
         Travel old = travel(id);
         Set<UUID> ids = new HashSet<>(old.travelerIds());
         ids.add(traveler);
         Travel result = withTravelers(old, ids);
         travels.put(id, result);
-        return result;
+        return changed(result);
     }
 
     public synchronized void removeParticipant(UUID id, UUID traveler) {
-        if (graph != null) { graph.removeParticipant(id, traveler); return; }
-        Travel old = travel(id);
-        Set<UUID> ids = new HashSet<>(old.travelerIds());
-        ids.remove(traveler);
-        travels.put(id, withTravelers(old, ids));
+        if (graph != null) graph.removeParticipant(id, traveler);
+        else {
+            Travel old = travel(id);
+            Set<UUID> ids = new HashSet<>(old.travelerIds());
+            ids.remove(traveler);
+            travels.put(id, withTravelers(old, ids));
+        }
+        searchIndex.accept(id);
     }
 
     /**
@@ -229,7 +240,7 @@ public class TravelStore {
      */
     public Travel reserveSeat(UUID id, UUID traveler) {
         // Not synchronized on the graph path: Neo4j's lock on the travel node is what serializes callers.
-        if (graph != null) return graph.reserve(id, traveler, travel -> policy.reservationProblem(travel, traveler));
+        if (graph != null) return changed(graph.reserve(id, traveler, travel -> policy.reservationProblem(travel, traveler)));
         return reserveInMemory(id, traveler);
     }
 
@@ -242,7 +253,7 @@ public class TravelStore {
         ids.add(traveler);
         Travel result = withTravelers(old, ids);
         travels.put(id, result);
-        return result;
+        return changed(result);
     }
 
     /** Gives a place back; releasing a place that is not held, or on a deleted travel, does nothing. */
@@ -270,8 +281,15 @@ public class TravelStore {
     public void delete(UUID id) {
         Travel current = travel(id);
         if (!current.travelerIds().isEmpty()) throw new Conflict("TRAVEL_IN_USE");
-        if (graph != null) { graph.delete(id); return; }
-        travels.remove(id);
+        if (graph != null) graph.delete(id);
+        else travels.remove(id);
+        searchIndex.accept(id);
+    }
+
+    /** Every committed travel change is reported to search-service (see SearchIndexNotifier). */
+    private Travel changed(Travel travel) {
+        searchIndex.accept(travel.id());
+        return travel;
     }
 
     private static Travel withTravelers(Travel old, Set<UUID> ids) {
