@@ -230,10 +230,12 @@ paths:
       operationId: submitFeedback
       summary: Rate a completed travel
       x-required-role: TRAVELER
-      description: One feedback per completed participation. Rejected with 409
+      description: One feedback per completed participation. Eligible when the
+        caller's subscription to the travel is `COMPLETED`, or `CONFIRMED` and the
+        travel's end date has passed in the travel's time zone. Rejected with 409
         `FEEDBACK_NOT_ELIGIBLE` (not a participant, cancelled, or travel not yet
-        ended) or `FEEDBACK_ALREADY_SUBMITTED`. Comments are stored as plain text and
-        must be rendered as text.
+        ended) or `FEEDBACK_ALREADY_SUBMITTED`. Feedback cannot be edited. Comments
+        are stored as plain text and must be rendered as text.
       parameters:
       - "$ref": "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -244,13 +246,8 @@ paths:
               "$ref": "#/components/schemas/FeedbackCreate"
       responses:
         '201':
-          description: Feedback recorded.
-          headers:
-            Location:
-              description: URL of the feedback.
-              schema:
-                type: string
-                format: uri-reference
+          description: Feedback recorded (or the earlier result of a retry with the
+            same Idempotency-Key).
           content:
             application/json:
               schema:
@@ -271,8 +268,9 @@ paths:
       operationId: listFeedback
       summary: List feedback for quality control
       x-required-role: TRAVEL_MANAGER
-      description: Managers see feedback on their own travels; admins see all and
-        may filter by manager. Newest first.
+      description: Managers see feedback on their own travels only (a `travelId` of
+        another manager's travel returns 404, `managerId` is ignored); admins see all
+        and may filter by travel and manager. Newest first.
       parameters:
       - name: travelId
         in: query
@@ -300,6 +298,32 @@ paths:
           "$ref": "#/components/responses/Unauthorized"
         '403':
           "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/feedback/mine":
+    get:
+      operationId: listMyFeedback
+      summary: The caller's own feedback history
+      x-required-role: TRAVELER
+      description: Newest first.
+      parameters:
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      responses:
+        '200':
+          description: Feedback the caller has given.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/FeedbackPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
         '503':
           "$ref": "#/components/responses/Unavailable"
   "/api/reports":
@@ -307,9 +331,12 @@ paths:
       operationId: fileReport
       summary: Report a manager, traveler or travel
       x-required-role: TRAVELER
-      description: Rejected with 400 `SELF_REPORT` when reporting oneself, 404 for an
-        unknown target, and 409 `DUPLICATE_REPORT` while the caller has an open
-        report on the same target. The reporter is never shown to the target.
+      description: Rejected with 400 `SELF_REPORT` when reporting oneself (or one's
+        own travel), 404 for an unknown target (checked with user-service or
+        travel-service), 409 `DUPLICATE_REPORT` while the caller has an open report
+        on the same target, and 429 `TOO_MANY_REPORTS` after 10 reports in 24 hours.
+        The reporter is never shown to the target. The description is stored as
+        plain text.
       parameters:
       - "$ref": "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -320,13 +347,8 @@ paths:
               "$ref": "#/components/schemas/ReportCreate"
       responses:
         '201':
-          description: Report filed.
-          headers:
-            Location:
-              description: URL of the report.
-              schema:
-                type: string
-                format: uri-reference
+          description: Report filed (or the earlier result of a retry with the same
+            Idempotency-Key).
           content:
             application/json:
               schema:
@@ -341,6 +363,32 @@ paths:
           "$ref": "#/components/responses/NotFound"
         '409':
           "$ref": "#/components/responses/Conflict"
+        '429':
+          "$ref": "#/components/responses/TooManyRequests"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+    get:
+      operationId: listMyReports
+      summary: The caller's own reports
+      x-required-role: TRAVELER
+      description: Only reports the caller filed, newest first, including what they
+        wrote and the current moderation status. Never other people's reports.
+      parameters:
+      - "$ref": "#/components/parameters/Page"
+      - "$ref": "#/components/parameters/Size"
+      responses:
+        '200':
+          description: The caller's reports.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/MyReportPage"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
         '503':
           "$ref": "#/components/responses/Unavailable"
   "/api/admin/reports":
@@ -404,7 +452,9 @@ paths:
       summary: Change a report's moderation state
       x-required-role: ADMIN
       description: Every change appends an immutable history entry with the admin,
-        time, new state and note. `RESOLVED` and `DISMISSED` are final.
+        time, new state and note. The new status must be `IN_REVIEW`, `RESOLVED`
+        (upheld; counted on public pages) or `DISMISSED`; the last two are final and
+        a further change returns 409 `REPORT_CLOSED`.
       parameters:
       - "$ref": "#/components/parameters/ReportId"
       requestBody:
@@ -514,6 +564,12 @@ components:
             "$ref": "#/components/schemas/Error"
     Conflict:
       description: Business rule or idempotency conflict; `code` names the rule.
+      content:
+        application/json:
+          schema:
+            "$ref": "#/components/schemas/Error"
+    TooManyRequests:
+      description: Rate limit reached (`TOO_MANY_REPORTS`).
       content:
         application/json:
           schema:
@@ -693,7 +749,8 @@ components:
         reportCount:
           type: integer
           minimum: 0
-          description: Upheld reports against this traveler (always 0 until Phase 6).
+          description: Upheld (RESOLVED) reports against this traveler. Report
+            contents and reporters are never shown here.
         status:
           "$ref": "#/components/schemas/SubscriptionStatus"
         subscribedAt:
@@ -869,6 +926,7 @@ components:
     Report:
       type: object
       additionalProperties: false
+      description: A report as its reporter sees it.
       properties:
         reportId:
           type: string
@@ -878,7 +936,11 @@ components:
         targetId:
           type: string
           format: uuid
+        targetDisplayName:
+          type: string
         category:
+          type: string
+        description:
           type: string
         status:
           "$ref": "#/components/schemas/ReportStatus"
@@ -889,9 +951,34 @@ components:
       - reportId
       - targetType
       - targetId
+      - targetDisplayName
       - category
+      - description
       - status
       - createdAt
+    MyReportPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Report"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
     ModerationEntry:
       type: object
       additionalProperties: false

@@ -77,7 +77,7 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 - [x] Phase 3 — Subscriptions, subscriber management, and cancellation policy
 - [ ] Phase 4 — Secure subscription payments
 - [ ] Phase 5 — Elasticsearch search and autocomplete
-- [ ] Phase 6 — Feedback, reports, and moderation
+- [x] Phase 6 — Feedback, reports, and moderation
 - [ ] Phase 7 — Neo4j personalized recommendations
 - [ ] Phase 8 — Analytics and role-specific dashboard APIs
 - [ ] Phase 9 — Responsive role-specific web experience
@@ -205,19 +205,19 @@ Evidence: `docs/audit/phase-3-verification.md`. Design: `docs/subscriptions.md`.
 
 **Main files:** New `search-service/src/main/`, index mappings/templates, `infra/compose/`, gateway routes, search OpenAPI contract, load/integration tests.
 
-- [ ] Define a versioned travel index mapping covering name, destinations, country, description, dates, activities, accommodation, transport, manager, price, and availability.
-- [ ] Normalize keyword/text fields, analyzers, case/diacritic behavior, and autocomplete prefix fields.
-- [ ] Consume travel events idempotently and delete or hide documents immediately after unpublish/delete events.
-- [ ] Add a full reindex command that rebuilds a fresh versioned index and switches an alias without search downtime.
-- [ ] Expose search with pagination, filters, sorting, safe query limits, and deterministic empty-query behavior.
-- [ ] Expose debounced autocomplete with a small result limit and enough context to distinguish similarly named travels.
-- [ ] Rank exact/prefix matches above fuzzy matches and verify relevance with a documented representative data set.
-- [ ] Reject malformed or abusive queries and avoid exposing Elasticsearch query syntax directly to clients.
-- [ ] Provide lag/readiness metrics and an operational view of failed indexing events.
-- [ ] Implement a documented degraded browse fallback when Elasticsearch is unavailable; clearly indicate reduced search capability.
-- [ ] Add integration tests using a real Elasticsearch test container for mapping, search, autocomplete, updates, deletes, replay, and outage recovery.
-- [ ] Measure autocomplete/search latency under the documented load and keep every audited action below five seconds.
-- [ ] **Completion gate:** Search returns accurate results across all travel details, autocomplete is relevant and prompt, reindex/replay repairs drift, and a forced Elasticsearch outage does not break core browsing.
+- [x] Define a versioned travel index mapping covering name, destinations, country, description, dates, activities, accommodation, transport, manager, price, and availability.
+- [x] Normalize keyword/text fields, analyzers, case/diacritic behavior, and autocomplete prefix fields.
+- [x] Consume travel events idempotently and delete or hide documents immediately after unpublish/delete events. (Phase 5 uses after-commit change notifications plus fetch-current-state, not the outbox feed; see docs/search.md §5.)
+- [x] Add a full reindex command that rebuilds a fresh versioned index and switches an alias without search downtime.
+- [x] Expose search with pagination, filters, sorting, safe query limits, and deterministic empty-query behavior.
+- [x] Expose debounced autocomplete with a small result limit and enough context to distinguish similarly named travels.
+- [x] Rank exact/prefix matches above fuzzy matches and verify relevance with a documented representative data set.
+- [x] Reject malformed or abusive queries and avoid exposing Elasticsearch query syntax directly to clients.
+- [x] Provide lag/readiness metrics and an operational view of failed indexing events.
+- [x] Implement a documented degraded browse fallback when Elasticsearch is unavailable; clearly indicate reduced search capability.
+- [x] Add integration tests using a real Elasticsearch test container for mapping, search, autocomplete, updates, deletes, replay, and outage recovery.
+- [x] Measure autocomplete/search latency under the documented load and keep every audited action below five seconds.
+- [x] **Completion gate:** Search returns accurate results across all travel details, autocomplete is relevant and prompt, reindex/replay repairs drift, and a forced Elasticsearch outage does not break core browsing.
 
 ## Phase 6 — Feedback, reports, and moderation
 
@@ -227,18 +227,20 @@ Evidence: `docs/audit/phase-3-verification.md`. Design: `docs/subscriptions.md`.
 
 **Main files:** `engagement-service/src/main/`, migrations, feedback/report contracts, user/travel internal clients, tests.
 
-- [ ] Allow one feedback record per completed participation with rating, bounded comment, author, travel, manager, and timestamps.
-- [ ] Reject feedback from nonparticipants, cancelled subscriptions, future/incomplete travels, and duplicate submissions.
-- [ ] Define whether feedback can be edited and for how long; keep an audit trail for moderation-sensitive changes.
-- [ ] Let the owning manager read feedback for their travels and let Admins read feedback across all travels.
-- [ ] Expose only the intended public rating summary; protect feedback author privacy where required.
-- [ ] Allow Travelers to report a Travel Manager, another Traveler, or a Travel with a reason category and bounded description.
-- [ ] Prevent self-reporting, invalid targets, duplicate report spam, and unrestricted access to report details.
-- [ ] Give Admins a moderation queue with status, assignee, resolution, notes, and an immutable action history.
-- [ ] Show safe report counts on public manager/traveler views without exposing reporters or private allegations.
-- [ ] Emit feedback/report events for recommendations, manager performance, dashboards, and notifications.
-- [ ] Sanitize and safely render every user-supplied text field; add stored/reflected XSS regression tests.
-- [ ] **Completion gate:** Eligibility, visibility, moderation, report-target, privacy, and XSS tests pass for every role.
+- [x] Allow one feedback record per completed participation with rating, bounded comment, author, travel, manager, and timestamps.
+- [x] Reject feedback from nonparticipants, cancelled subscriptions, future/incomplete travels, and duplicate submissions.
+- [x] Define whether feedback can be edited and for how long; keep an audit trail for moderation-sensitive changes. (Feedback is immutable once submitted; report moderation keeps an append-only history.)
+- [x] Let the owning manager read feedback for their travels and let Admins read feedback across all travels.
+- [x] Expose only the intended public rating summary; protect feedback author privacy where required.
+- [x] Allow Travelers to report a Travel Manager, another Traveler, or a Travel with a reason category and bounded description.
+- [x] Prevent self-reporting, invalid targets, duplicate report spam, and unrestricted access to report details.
+- [x] Give Admins a moderation queue with status, assignee, resolution, notes, and an immutable action history.
+- [x] Show safe report counts on public manager/traveler views without exposing reporters or private allegations. (Upheld count on the manager page and in the subscriber summary; there is no public traveler page yet.)
+- [x] Emit feedback/report events for recommendations, manager performance, dashboards, and notifications. Written to the engagement `outbox_event` table in the same transaction (`FeedbackSubmitted`, `ReportFiled`, `ReportModerated`); the feed publisher arrives with the event pipeline.
+- [x] Sanitize and safely render every user-supplied text field; add stored/reflected XSS regression tests. (Plain text with length limits, parameterised SQL, JSON + `nosniff`, React text rendering; the restrictive CSP is Phase 11.)
+- [x] **Completion gate:** Eligibility, visibility, moderation, report-target, privacy, and XSS tests pass for every role.
+
+Evidence: `docs/audit/phase-6-verification.md`. Design: `docs/feedback-and-reports.md`.
 
 ## Phase 7 — Neo4j personalized recommendations
 

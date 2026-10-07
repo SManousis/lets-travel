@@ -38,8 +38,8 @@ paths:
       summary: Public page of a travel manager
       x-required-role: TRAVELER
       description: Completed and total listing counts, recent ratings, average rating
-        and the number of upheld reports. Report contents and reporters are never shown.
-        In Phase 2 averageRating is null, recentRatings is empty and reportCount is 0.
+        and the number of upheld reports. Ratings never name their author; report
+        contents and reporters are never shown.
         404 NOT_FOUND for an unknown or non-manager id; 503 DEPENDENCY_UNAVAILABLE when
         user-service or travel-service cannot answer. The internal reads behind this page
         are not routed by the gateway.
@@ -372,9 +372,9 @@ components:
     ManagerPage:
       type: object
       additionalProperties: false
-      description: Phase 2 shape served by engagement-service from user-service and
-        travel-service internal reads. Rating and report data arrive in a later phase;
-        until then averageRating is null, recentRatings is empty and reportCount is 0.
+      description: Served by engagement-service from user-service and travel-service
+        internal reads (profile, listing counts) and its own feedback and report
+        tables (Phase 6).
       properties:
         managerId:
           type: string
@@ -397,7 +397,12 @@ components:
           type: number
           format: double
           nullable: true
-          description: Null until ratings exist.
+          description: Mean of all ratings for this manager's travels, rounded to one
+            decimal; null until ratings exist.
+        ratingCount:
+          type: integer
+          format: int64
+          minimum: 0
         recentRatings:
           type: array
           maxItems: 10
@@ -415,6 +420,7 @@ components:
       - completedTravels
       - totalTravels
       - averageRating
+      - ratingCount
       - recentRatings
       - reportCount
     TravelSummary:
