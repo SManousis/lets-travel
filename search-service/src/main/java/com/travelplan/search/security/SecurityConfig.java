@@ -8,7 +8,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Any signed-in role may search.
+ * Any signed-in role may search; the index status and rebuild endpoints are for Admins.
  * /internal endpoints are not routed by the gateway and check the internal service token themselves.
  */
 @Configuration
@@ -19,6 +19,7 @@ public class SecurityConfig {
         return ServiceSecurity.apply(http, tokens)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**", "/error", "/internal/**").permitAll()
+                        .requestMatchers("/api/search/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").hasRole("TRAVELER")
                         .anyRequest().denyAll())
                 .build();
