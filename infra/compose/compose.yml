@@ -117,6 +117,8 @@ services:
       AUTH_TOKEN_SECRET: "${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}"
       AUTH_INTERNAL_SERVICE_TOKEN: "${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}"
       AUTH_SERVICE_URL: http://auth-service:8081
+      # Told about every travel change so the search index follows (docs/search.md).
+      SEARCH_SERVICE_URL: http://search-service:8086
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-change-me-neo4j}
     depends_on:
       neo4j: { condition: service_healthy }
@@ -193,8 +195,13 @@ services:
       MANAGEMENT_ADDRESS: 0.0.0.0
       SPRING_PROFILES_ACTIVE: infra
       ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:-change-me-elasticsearch}
+      AUTH_TOKEN_SECRET: "${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}"
+      AUTH_INTERNAL_SERVICE_TOKEN: "${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}"
+      AUTH_SERVICE_URL: http://auth-service:8081
+      TRAVEL_SERVICE_URL: http://travel-service:8083
     depends_on:
       elasticsearch: { condition: service_healthy }
+      travel-service: { condition: service_healthy }
     networks: [backend]
     expose: [8086, 9086]
     healthcheck:
@@ -214,6 +221,7 @@ services:
       TRAVEL_SERVICE_URL: http://travel-service:8083
       PAYMENT_SERVICE_URL: http://payment-service:8084
       ENGAGEMENT_SERVICE_URL: http://engagement-service:8085
+      SEARCH_SERVICE_URL: http://search-service:8086
       AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}
       AUTH_INTERNAL_SERVICE_TOKEN: ${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}
     depends_on:
@@ -222,6 +230,8 @@ services:
       travel-service: { condition: service_healthy }
       payment-service: { condition: service_healthy }
       engagement-service: { condition: service_healthy }
+      # Only "started": the gateway (and travel browsing) must come up even when Elasticsearch is down.
+      search-service: { condition: service_started }
     networks: [backend]
     ports: ["127.0.0.1:8080:8080"]
     expose: [9080]
