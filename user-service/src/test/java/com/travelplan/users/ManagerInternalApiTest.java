@@ -66,6 +66,30 @@ class ManagerInternalApiTest {
         verifyNoInteractions(store);
     }
 
+    @Test void userSummaryIsSafeAndReportsWhetherTheAccountIsActive() throws Exception {
+        UUID active = UUID.randomUUID();
+        UUID disabled = UUID.randomUUID();
+        UUID missing = UUID.randomUUID();
+        Instant createdAt = Instant.parse("2025-03-04T12:30:00Z");
+        when(store.get(active)).thenReturn(user(active, Role.TRAVELER, UserDomain.Status.ACTIVE, createdAt));
+        when(store.get(disabled)).thenReturn(user(disabled, Role.TRAVELER, UserDomain.Status.DISABLED, createdAt));
+        when(store.get(missing)).thenThrow(new UserStore.NotFound());
+
+        mvc.perform(get("/internal/users/{id}/summary", active).header("X-Internal-Service-Token", "internal-secret"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(active.toString()))
+                .andExpect(jsonPath("$.displayName").value("Maria Manager"))
+                .andExpect(jsonPath("$.memberSince").value(createdAt.toString()))
+                .andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.email").doesNotExist())
+                .andExpect(jsonPath("$.role").doesNotExist());
+        mvc.perform(get("/internal/users/{id}/summary", disabled).header("X-Internal-Service-Token", "internal-secret"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.active").value(false));
+        mvc.perform(get("/internal/users/{id}/summary", missing).header("X-Internal-Service-Token", "internal-secret"))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/internal/users/{id}/summary", active)).andExpect(status().isForbidden());
+    }
+
     private void assertStatus(UUID id, int expected) throws Exception {
         mvc.perform(get("/internal/managers/{id}", id).header("X-Internal-Service-Token", "internal-secret"))
                 .andExpect(status().is(expected));
