@@ -41,7 +41,8 @@ class AuthorizationMatrixTest {
             endpoint("GET", "/api/me", Access.TRAVELER),
             endpoint("POST", "/api/registrations", Access.PUBLIC),
             endpoint("POST", "/api/password-setup", Access.PUBLIC),
-            endpoint("GET", "/internal/users/{id}/payment-eligibility", Access.INTERNAL));
+            endpoint("GET", "/internal/users/{id}/payment-eligibility", Access.INTERNAL),
+            endpoint("GET", "/internal/managers/{id}", Access.INTERNAL));
 
     @Autowired ApplicationContext context;
     @Autowired AccessTokenCodec codec;

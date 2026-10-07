@@ -161,8 +161,15 @@ services:
       MANAGEMENT_ADDRESS: 0.0.0.0
       SPRING_PROFILES_ACTIVE: infra
       ENGAGEMENT_DB_PASSWORD: ${ENGAGEMENT_DB_PASSWORD:-change-me-engagement}
+      AUTH_TOKEN_SECRET: "${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}"
+      AUTH_INTERNAL_SERVICE_TOKEN: "${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}"
+      AUTH_SERVICE_URL: http://auth-service:8081
+      USER_SERVICE_URL: http://user-service:8082
+      TRAVEL_SERVICE_URL: http://travel-service:8083
     depends_on:
       postgres: { condition: service_healthy }
+      user-service: { condition: service_healthy }
+      travel-service: { condition: service_healthy }
     networks: [backend]
     expose: [8085, 9085]
     healthcheck:
@@ -199,6 +206,7 @@ services:
       USER_SERVICE_URL: http://user-service:8082
       TRAVEL_SERVICE_URL: http://travel-service:8083
       PAYMENT_SERVICE_URL: http://payment-service:8084
+      ENGAGEMENT_SERVICE_URL: http://engagement-service:8085
       AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}
       AUTH_INTERNAL_SERVICE_TOKEN: ${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}
     depends_on:
@@ -206,6 +214,7 @@ services:
       user-service: { condition: service_healthy }
       travel-service: { condition: service_healthy }
       payment-service: { condition: service_healthy }
+      engagement-service: { condition: service_healthy }
     networks: [backend]
     ports: ["127.0.0.1:8080:8080"]
     expose: [9080]

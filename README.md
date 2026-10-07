@@ -25,14 +25,14 @@ needed to build and run the Phase 1 applications locally.
 From the repository root:
 
 ```sh
-./mvnw verify
+./mvnw -B -ntp clean verify
 npm ci
 npm run lint:api
 npm --prefix admin-ui ci
 npm --prefix admin-ui run build
 ```
 
-On Windows, use `mvnw.cmd verify`. Each Java module produces an executable
+On Windows, use `mvnw.cmd clean verify`. Each Java module produces an executable
 `target/<module-name>.jar`. The UI build produces `admin-ui/dist/`. Root npm tooling
 validates API contracts; frontend dependencies have their own package and lockfile.
 

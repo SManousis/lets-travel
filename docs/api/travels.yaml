@@ -1,18 +1,18 @@
----
 openapi: 3.0.3
 info:
   title: Travels and destinations API
-  version: 0.1.0
-  description: 'FUTURE CONTRACT: not implemented by the Phase 1 skeleton. Dependency
-    unavailable or work could not be durably accepted.'
+  version: 0.2.0
+  description: Manager-owned travel listings (Phase 2). Every travel has an immutable managerId. TRAVEL_MANAGER users manage
+    their own listings, ADMIN manages every listing, TRAVELER users see only bookable published listings. Ownership is enforced
+    inside travel-service; the gateway only requires a signed-in user. A non-admin asking for another manager's private or
+    nonexistent listing receives 404. Errors are {code, message}; conflict codes are listed on the Conflict response.
 servers:
 - url: http://localhost:8080
   description: Loopback development gateway; deployment requires HTTPS.
 security:
-- adminBearer: []
-x-required-role: ADMIN
+- bearerAuth: []
 paths:
-  "/api/destinations":
+  /api/destinations:
     get:
       operationId: listDestinations
       summary: List destination records
@@ -22,24 +22,25 @@ paths:
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/DestinationPage"
+                $ref: '#/components/schemas/DestinationPage'
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
+          $ref: '#/components/responses/Forbidden'
         '404':
-          "$ref": "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       parameters:
-      - "$ref": "#/components/parameters/Page"
-      - "$ref": "#/components/parameters/Size"
-      description: Order by createdAt ascending then UUID ascending. Includes pending
-        and failed records.
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+      security:
+      - adminBearer: []
+      x-required-role: TRAVELER
     post:
       operationId: createDestination
       summary: Create destination
@@ -49,7 +50,7 @@ paths:
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/Destination"
+                $ref: '#/components/schemas/Destination'
           headers:
             Location:
               description: Gateway-relative resource or operation URL.
@@ -57,24 +58,27 @@ paths:
                 type: string
                 format: uri-reference
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
+          $ref: '#/components/responses/Forbidden'
         '404':
-          "$ref": "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              "$ref": "#/components/schemas/DestinationCreate"
-  "/api/destinations/{destinationId}":
+              $ref: '#/components/schemas/DestinationWrite'
+      security:
+      - adminBearer: []
+      x-required-role: ADMIN
+  /api/destinations/{destinationId}:
     get:
       operationId: getDestination
       summary: Read destination
@@ -84,19 +88,19 @@ paths:
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/Destination"
+                $ref: '#/components/schemas/Destination'
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
+          $ref: '#/components/responses/Forbidden'
         '404':
-          "$ref": "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: destinationId
         in: path
@@ -104,6 +108,9 @@ paths:
         schema:
           type: string
           format: uuid
+      security:
+      - adminBearer: []
+      x-required-role: TRAVELER
     patch:
       operationId: updateDestination
       summary: Update destination
@@ -113,25 +120,25 @@ paths:
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/Destination"
+                $ref: '#/components/schemas/Destination'
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
+          $ref: '#/components/responses/Forbidden'
         '404':
-          "$ref": "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              "$ref": "#/components/schemas/DestinationPatch"
+              $ref: '#/components/schemas/DestinationWrite'
       parameters:
       - name: destinationId
         in: path
@@ -139,6 +146,9 @@ paths:
         schema:
           type: string
           format: uuid
+      security:
+      - adminBearer: []
+      x-required-role: ADMIN
     delete:
       operationId: deleteDestination
       summary: Delete destination
@@ -146,17 +156,17 @@ paths:
         '204':
           description: Resource deleted or session revoked.
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
+          $ref: '#/components/responses/Forbidden'
         '404':
-          "$ref": "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       parameters:
       - name: destinationId
         in: path
@@ -164,395 +174,211 @@ paths:
         schema:
           type: string
           format: uuid
-      description: 409 DESTINATION_IN_USE while any stop references the destination;
-        otherwise 204.
-  "/api/travels":
+      description: 409 DESTINATION_IN_USE while any stop references the destination; otherwise 204.
+      security:
+      - adminBearer: []
+      x-required-role: ADMIN
+  /api/travels:
     get:
       operationId: listTravels
-      summary: List travel records
+      summary: List travels visible to the caller
+      x-required-role: TRAVELER
+      description: ADMIN sees every owned listing. TRAVEL_MANAGER sees only own listings in any status. TRAVELER sees only
+        bookable listings (PUBLISHED, future start date, remaining capacity). Ownerless legacy travels (LegacyTravelNeedsReview)
+        are never returned.
       responses:
         '200':
-          description: Successful response.
+          description: One page of listings.
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/TravelPage"
+                $ref: '#/components/schemas/TravelPage'
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
-        '404':
-          "$ref": "#/components/responses/NotFound"
-        '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Forbidden'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       parameters:
-      - "$ref": "#/components/parameters/Page"
-      - "$ref": "#/components/parameters/Size"
-      description: Order by createdAt ascending then UUID ascending. Includes pending
-        and failed records.
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
     post:
       operationId: createTravel
-      summary: Create travel
+      summary: Create a draft travel
+      x-required-role: TRAVEL_MANAGER
+      description: A TRAVEL_MANAGER owns the draft implicitly and any managerId in the body is ignored. An ADMIN must send
+        managerId of an active manager (409 MANAGER_REQUIRED or MANAGER_NOT_ACTIVE). The owner cannot be changed afterwards.
       responses:
         '201':
-          description: Resource created.
+          description: Draft created.
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/Travel"
-          headers:
-            Location:
-              description: Gateway-relative resource or operation URL.
-              schema:
-                type: string
-                format: uri-reference
+                $ref: '#/components/schemas/Travel'
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
-        '404':
-          "$ref": "#/components/responses/NotFound"
+          $ref: '#/components/responses/Forbidden'
         '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              "$ref": "#/components/schemas/TravelWrite"
-      description: Require non-reversed dates and at least one destination stop. All
-        component IDs must be omitted for creation. Duration is inclusive calendar
-        days. Explicit empty activity/accommodation/transport arrays are allowed;
-        omission is invalid.
-  "/api/travels/{travelId}":
+              $ref: '#/components/schemas/TravelWrite'
+  /api/travels/{travelId}:
     get:
       operationId: getTravel
-      summary: Read travel
+      summary: Read a travel
+      x-required-role: TRAVELER
       responses:
         '200':
-          description: Successful response.
+          description: The listing.
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/Travel"
+                $ref: '#/components/schemas/Travel'
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
+          $ref: '#/components/responses/Forbidden'
         '404':
-          "$ref": "#/components/responses/NotFound"
-        '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/NotFound'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       parameters:
-      - name: travelId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+      - $ref: '#/components/parameters/TravelId'
     put:
       operationId: updateTravel
-      summary: Update travel
+      summary: Replace editable listing and itinerary fields
+      x-required-role: TRAVEL_MANAGER
+      description: Preserves owner, status, version lineage and participants; increments version. managerId in the body is
+        ignored. 409 CAPACITY_BELOW_PARTICIPANTS if capacity drops below the participant count.
       responses:
         '200':
-          description: Successful response.
+          description: Updated listing.
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/Travel"
+                $ref: '#/components/schemas/Travel'
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
+          $ref: '#/components/responses/Forbidden'
         '404':
-          "$ref": "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - $ref: '#/components/parameters/TravelId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              "$ref": "#/components/schemas/TravelWrite"
-      parameters:
-      - name: travelId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      description: Replace title, dates and complete itinerary atomically. Omitted
-        existing components are deleted; supplied component IDs must already belong
-        to this travel. Participation is unchanged and managed by its own routes.
+              $ref: '#/components/schemas/TravelWrite'
     delete:
       operationId: deleteTravel
-      summary: Delete travel
+      summary: Delete a travel
+      x-required-role: TRAVEL_MANAGER
+      description: 409 TRAVEL_IN_USE while participation state forbids deletion.
       responses:
         '204':
-          description: Resource deleted or session revoked.
+          description: Deleted.
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
+          $ref: '#/components/responses/Forbidden'
         '404':
-          "$ref": "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       parameters:
-      - name: travelId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      description: Delete owned stops, activities, accommodations, transport and participation
-        in one transaction. Preserve shared destinations.
-  "/api/travels/{travelId}/itinerary":
-    get:
-      operationId: getItinerary
-      summary: Read the complete itinerary
-      responses:
-        '200':
-          description: Successful response.
-          content:
-            application/json:
-              schema:
-                "$ref": "#/components/schemas/Itinerary"
-        '400':
-          "$ref": "#/components/responses/BadRequest"
-        '401':
-          "$ref": "#/components/responses/Unauthorized"
-        '403':
-          "$ref": "#/components/responses/Forbidden"
-        '404':
-          "$ref": "#/components/responses/NotFound"
-        '409':
-          "$ref": "#/components/responses/Conflict"
-        '503':
-          "$ref": "#/components/responses/Unavailable"
-      parameters:
-      - name: travelId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      description: Create new components by omitting id; retain/update existing components
-        by id; delete by omission on PUT. Positions must be contiguous and match array
-        order. Transport input positions resolve to owned stop UUIDs. All dates must
-        fit their stop/travel period.
-    put:
-      operationId: replaceItinerary
-      summary: Replace the complete itinerary
-      responses:
-        '200':
-          description: Successful response.
-          content:
-            application/json:
-              schema:
-                "$ref": "#/components/schemas/Itinerary"
-        '400':
-          "$ref": "#/components/responses/BadRequest"
-        '401':
-          "$ref": "#/components/responses/Unauthorized"
-        '403':
-          "$ref": "#/components/responses/Forbidden"
-        '404':
-          "$ref": "#/components/responses/NotFound"
-        '409':
-          "$ref": "#/components/responses/Conflict"
-        '503':
-          "$ref": "#/components/responses/Unavailable"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              "$ref": "#/components/schemas/ItineraryWrite"
-      parameters:
-      - name: travelId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      description: Create new components by omitting id; retain/update existing components
-        by id; delete by omission on PUT. Positions must be contiguous and match array
-        order. Transport input positions resolve to owned stop UUIDs. All dates must
-        fit their stop/travel period.
-  "/api/travels/{travelId}/participants":
-    get:
-      operationId: listParticipations
-      summary: List participation records
-      responses:
-        '200':
-          description: Successful response.
-          content:
-            application/json:
-              schema:
-                "$ref": "#/components/schemas/ParticipationPage"
-        '400':
-          "$ref": "#/components/responses/BadRequest"
-        '401':
-          "$ref": "#/components/responses/Unauthorized"
-        '403':
-          "$ref": "#/components/responses/Forbidden"
-        '404':
-          "$ref": "#/components/responses/NotFound"
-        '409':
-          "$ref": "#/components/responses/Conflict"
-        '503':
-          "$ref": "#/components/responses/Unavailable"
-      parameters:
-      - "$ref": "#/components/parameters/Page"
-      - "$ref": "#/components/parameters/Size"
-      - name: travelId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      description: Order by createdAt ascending then UUID ascending. Includes pending
-        and failed records.
+      - $ref: '#/components/parameters/TravelId'
+  /api/travels/{travelId}/publication:
     post:
-      operationId: addParticipant
-      summary: Add a traveler to a travel
-      responses:
-        '201':
-          description: Resource created.
-          content:
-            application/json:
-              schema:
-                "$ref": "#/components/schemas/Participation"
-          headers:
-            Location:
-              description: Gateway-relative resource or operation URL.
-              schema:
-                type: string
-                format: uri-reference
-        '400':
-          "$ref": "#/components/responses/BadRequest"
-        '401':
-          "$ref": "#/components/responses/Unauthorized"
-        '403':
-          "$ref": "#/components/responses/Forbidden"
-        '404':
-          "$ref": "#/components/responses/NotFound"
-        '409':
-          "$ref": "#/components/responses/Conflict"
-        '503':
-          "$ref": "#/components/responses/Unavailable"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              "$ref": "#/components/schemas/ParticipationCreate"
-      parameters:
-      - name: travelId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      description: Validate traveler belongs to user and both are active. Duplicate
-        travel/traveler pair returns 409. References are immutable; remove and add
-        to change participation.
-  "/api/travels/{travelId}/participants/{participationId}":
-    get:
-      operationId: getParticipant
-      summary: Read a participation
+      operationId: publishTravel
+      summary: Publish a ready travel
+      x-required-role: TRAVEL_MANAGER
+      description: 'Idempotent: publishing a PUBLISHED listing returns it without a new event. Requires a future start date,
+        nonblank description, positive capacity, a destination stop and valid itinerary bounds (409 PUBLICATION_NOT_READY
+        otherwise; 409 TRAVEL_NOT_EDITABLE when CANCELLED).'
       responses:
         '200':
-          description: Successful response.
+          description: Current representation, PUBLISHED.
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/Participation"
+                $ref: '#/components/schemas/Travel'
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
+          $ref: '#/components/responses/Forbidden'
         '404':
-          "$ref": "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       parameters:
-      - name: travelId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: participationId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+      - $ref: '#/components/parameters/TravelId'
     delete:
-      operationId: removeParticipant
-      summary: Remove a participation
+      operationId: unpublishTravel
+      summary: Return a travel to UNPUBLISHED
+      x-required-role: TRAVEL_MANAGER
+      description: 'Idempotent: repeating the request returns the current representation without a new event.'
       responses:
-        '204':
-          description: Resource deleted or session revoked.
+        '200':
+          description: Current representation, UNPUBLISHED (or unchanged DRAFT).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Travel'
         '400':
-          "$ref": "#/components/responses/BadRequest"
+          $ref: '#/components/responses/BadRequest'
         '401':
-          "$ref": "#/components/responses/Unauthorized"
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          "$ref": "#/components/responses/Forbidden"
+          $ref: '#/components/responses/Forbidden'
         '404':
-          "$ref": "#/components/responses/NotFound"
+          $ref: '#/components/responses/NotFound'
         '409':
-          "$ref": "#/components/responses/Conflict"
+          $ref: '#/components/responses/Conflict'
         '503':
-          "$ref": "#/components/responses/Unavailable"
+          $ref: '#/components/responses/Unavailable'
       parameters:
-      - name: travelId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: participationId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+      - $ref: '#/components/parameters/TravelId'
 components:
   securitySchemes:
     adminBearer:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Requires ADMIN at both gateway and service. Validate signature,
-        issuer, audience, expiry and revocation.
+      description: Requires ADMIN at both gateway and service.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token checked at the gateway and in travel-service. Roles inherit ADMIN > TRAVEL_MANAGER > TRAVELER.
   parameters:
     Page:
       name: page
@@ -571,49 +397,60 @@ components:
         minimum: 1
         maximum: 100
         default: 20
+    TravelId:
+      name: travelId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     BadRequest:
-      description: Invalid request or fields.
+      description: Invalid request or fields. Code INVALID_REQUEST.
       content:
         application/json:
           schema:
-            "$ref": "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
     Unauthorized:
       description: Missing, invalid, expired or revoked authentication.
       content:
         application/json:
           schema:
-            "$ref": "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
       headers:
         WWW-Authenticate:
           schema:
             type: string
           description: Bearer challenge for access-token endpoints.
     Forbidden:
-      description: Valid identity lacks ADMIN, or CSRF validation failed.
+      description: Valid identity lacks the required role.
       content:
         application/json:
           schema:
-            "$ref": "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
     NotFound:
-      description: Resource or referenced resource not found.
+      description: Resource not found, or a private listing owned by another manager (indistinguishable for non-admins). Code
+        NOT_FOUND.
       content:
         application/json:
           schema:
-            "$ref": "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
     Conflict:
-      description: Uniqueness, lifecycle, ownership, last-admin, in-use or idempotency
-        conflict.
+      description: 'Stable safe conflict code. Ownership: MANAGER_REQUIRED, MANAGER_NOT_ACTIVE. Fields: INVALID_NAME, INVALID_DATES,
+        INVALID_CAPACITY, INVALID_PRICE, INVALID_CURRENCY. Itinerary: DESTINATION_REQUIRED, ITINERARY_REQUIRED, INVALID_STOP_ORDER,
+        STOP_OUTSIDE_TRAVEL, ACTIVITY_OUTSIDE_TRAVEL, ACCOMMODATION_OUTSIDE_TRAVEL, TRANSPORT_OUTSIDE_TRAVEL. Lifecycle: PUBLICATION_NOT_READY,
+        TRAVEL_NOT_EDITABLE, TRAVEL_IN_USE, CAPACITY_BELOW_PARTICIPANTS, INVALID_PARTICIPANTS, TRAVELER_REMOVED, INCOMPLETE_LEGACY_TRAVEL.
+        Destinations: DESTINATION_EXISTS, DESTINATION_IN_USE.'
       content:
         application/json:
           schema:
-            "$ref": "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
     Unavailable:
-      description: Dependency unavailable or work could not be durably accepted.
+      description: 'Safe 503: DEPENDENCY_UNAVAILABLE (user-service) or TRAVEL_STORE_UNAVAILABLE (Neo4j).'
       content:
         application/json:
           schema:
-            "$ref": "#/components/schemas/Error"
+            $ref: '#/components/schemas/Error'
       headers:
         Retry-After:
           schema:
@@ -621,175 +458,6 @@ components:
             minimum: 1
           description: Suggested delay in seconds, if known.
   schemas:
-    FieldError:
-      type: object
-      additionalProperties: false
-      properties:
-        field:
-          type: string
-        code:
-          type: string
-        message:
-          type: string
-      required:
-      - field
-      - code
-      - message
-    Error:
-      type: object
-      additionalProperties: false
-      properties:
-        code:
-          type: string
-          example: VALIDATION_ERROR
-        message:
-          type: string
-          example: The request contains invalid fields.
-        fieldErrors:
-          type: array
-          items:
-            "$ref": "#/components/schemas/FieldError"
-        traceId:
-          type: string
-          example: 4bf92f3577b34da6a3ce929d0e0e4736
-      required:
-      - code
-      - message
-      - fieldErrors
-      - traceId
-    DestinationCreate:
-      type: object
-      additionalProperties: false
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 200
-        countryCode:
-          type: string
-          pattern: "^[A-Z]{2}$"
-          description: ISO 3166-1 alpha-2 country code.
-        description:
-          type: string
-          maxLength: 2000
-      required:
-      - name
-      - countryCode
-    DestinationPatch:
-      type: object
-      additionalProperties: false
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 200
-        countryCode:
-          type: string
-          pattern: "^[A-Z]{2}$"
-          description: ISO 3166-1 alpha-2 country code.
-        description:
-          type: string
-          maxLength: 2000
-      minProperties: 1
-    Destination:
-      type: object
-      additionalProperties: false
-      properties:
-        destinationId:
-          type: string
-          format: uuid
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-        name:
-          type: string
-          minLength: 1
-          maxLength: 200
-        countryCode:
-          type: string
-          pattern: "^[A-Z]{2}$"
-          description: ISO 3166-1 alpha-2 country code.
-        description:
-          type: string
-          maxLength: 2000
-      required:
-      - destinationId
-      - createdAt
-      - updatedAt
-      - name
-      - countryCode
-    ActivityWrite:
-      type: object
-      additionalProperties: false
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: Existing owned ID on replacement; omit for a new component.
-        name:
-          type: string
-          minLength: 1
-          maxLength: 200
-        date:
-          type: string
-          format: date
-        description:
-          type: string
-          maxLength: 2000
-      required:
-      - name
-      - date
-    Activity:
-      type: object
-      additionalProperties: false
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-          minLength: 1
-          maxLength: 200
-        date:
-          type: string
-          format: date
-        description:
-          type: string
-          maxLength: 2000
-      required:
-      - id
-      - name
-      - date
-    AccommodationWrite:
-      type: object
-      additionalProperties: false
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: Existing owned ID on replacement; omit for a new component.
-        name:
-          type: string
-          minLength: 1
-          maxLength: 200
-        address:
-          type: string
-          minLength: 1
-          maxLength: 500
-        checkIn:
-          type: string
-          format: date
-        checkOut:
-          type: string
-          format: date
-      required:
-      - name
-      - address
-      - checkIn
-      - checkOut
     Accommodation:
       type: object
       additionalProperties: false
@@ -800,11 +468,9 @@ components:
         name:
           type: string
           minLength: 1
-          maxLength: 200
         address:
           type: string
           minLength: 1
-          maxLength: 500
         checkIn:
           type: string
           format: date
@@ -817,41 +483,132 @@ components:
       - address
       - checkIn
       - checkOut
-    StopWrite:
+    AccommodationWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        address:
+          type: string
+          minLength: 1
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+      required:
+      - name
+      - address
+      - checkIn
+      - checkOut
+    Activity:
       type: object
       additionalProperties: false
       properties:
         id:
           type: string
           format: uuid
-          description: Existing owned stop ID; omit for a new stop.
-        destinationId:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+      required:
+      - id
+      - name
+      - date
+    ActivityWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        date:
+          type: string
+          format: date
+      required:
+      - name
+      - date
+    Destination:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
           type: string
           format: uuid
-        position:
+        name:
+          type: string
+        country:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - name
+      - country
+      - createdAt
+    DestinationPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Destination'
+        page:
           type: integer
           minimum: 0
-        arrivalDate:
-          type: string
-          format: date
-        departureDate:
-          type: string
-          format: date
-        activities:
-          type: array
-          items:
-            "$ref": "#/components/schemas/ActivityWrite"
-        accommodations:
-          type: array
-          items:
-            "$ref": "#/components/schemas/AccommodationWrite"
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 0
       required:
-      - destinationId
-      - position
-      - arrivalDate
-      - departureDate
-      - activities
-      - accommodations
+      - items
+      - page
+      - size
+      - total
+    DestinationWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+        country:
+          type: string
+          minLength: 1
+      required:
+      - name
+      - country
+    Error:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          example: NOT_FOUND
+        message:
+          type: string
+          example: Resource not found
+      required:
+      - code
+      - message
     Stop:
       type: object
       additionalProperties: false
@@ -865,67 +622,41 @@ components:
         position:
           type: integer
           minimum: 0
+          description: Unique and contiguous from 0.
         arrivalDate:
           type: string
           format: date
+          nullable: true
         departureDate:
           type: string
           format: date
-        activities:
-          type: array
-          items:
-            "$ref": "#/components/schemas/Activity"
-        accommodations:
-          type: array
-          items:
-            "$ref": "#/components/schemas/Accommodation"
+          nullable: true
       required:
       - id
       - destinationId
       - position
-      - arrivalDate
-      - departureDate
-      - activities
-      - accommodations
-    TransportWrite:
+    StopWrite:
       type: object
       additionalProperties: false
       properties:
-        id:
+        destinationId:
           type: string
           format: uuid
-          description: Existing owned transport ID; omit for a new component.
-        fromStopPosition:
+        position:
           type: integer
           minimum: 0
-        toStopPosition:
-          type: integer
-          minimum: 0
-        mode:
+          description: Unique and contiguous from 0.
+        arrivalDate:
           type: string
-          enum:
-          - FLIGHT
-          - TRAIN
-          - BUS
-          - CAR
-          - FERRY
-          - WALK
-          - OTHER
-        departureAt:
+          format: date
+          nullable: true
+        departureDate:
           type: string
-          format: date-time
-        arrivalAt:
-          type: string
-          format: date-time
-        details:
-          type: string
-          maxLength: 1000
+          format: date
+          nullable: true
       required:
-      - fromStopPosition
-      - toStopPosition
-      - mode
-      - departureAt
-      - arrivalAt
+      - destinationId
+      - position
     Transport:
       type: object
       additionalProperties: false
@@ -933,146 +664,60 @@ components:
         id:
           type: string
           format: uuid
-        fromStopId:
-          type: string
-          format: uuid
-        toStopId:
-          type: string
-          format: uuid
         mode:
           type: string
-          enum:
-          - FLIGHT
-          - TRAIN
-          - BUS
-          - CAR
-          - FERRY
-          - WALK
-          - OTHER
-        departureAt:
-          type: string
-          format: date-time
-        arrivalAt:
-          type: string
-          format: date-time
-        details:
-          type: string
-          maxLength: 1000
-      required:
-      - id
-      - fromStopId
-      - toStopId
-      - mode
-      - departureAt
-      - arrivalAt
-    ItineraryWrite:
-      type: object
-      additionalProperties: false
-      properties:
-        stops:
-          type: array
-          items:
-            "$ref": "#/components/schemas/StopWrite"
-          minItems: 1
-        transportation:
-          type: array
-          items:
-            "$ref": "#/components/schemas/TransportWrite"
-      required:
-      - stops
-      - transportation
-    Itinerary:
-      type: object
-      additionalProperties: false
-      properties:
-        stops:
-          type: array
-          items:
-            "$ref": "#/components/schemas/Stop"
-          minItems: 1
-        transportation:
-          type: array
-          items:
-            "$ref": "#/components/schemas/Transport"
-      required:
-      - stops
-      - transportation
-    ParticipationCreate:
-      type: object
-      additionalProperties: false
-      properties:
-        userId:
-          type: string
-          format: uuid
-        travelerId:
-          type: string
-          format: uuid
-      required:
-      - userId
-      - travelerId
-    Participation:
-      type: object
-      additionalProperties: false
-      properties:
-        participationId:
-          type: string
-          format: uuid
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-        userId:
-          type: string
-          format: uuid
-        travelerId:
-          type: string
-          format: uuid
-      required:
-      - participationId
-      - createdAt
-      - updatedAt
-      - userId
-      - travelerId
-    TravelWrite:
-      type: object
-      additionalProperties: false
-      properties:
-        title:
+          minLength: 1
+        departure:
           type: string
           minLength: 1
-          maxLength: 200
-        startDate:
+        arrival:
+          type: string
+          minLength: 1
+        date:
           type: string
           format: date
-        endDate:
-          type: string
-          format: date
-        itinerary:
-          "$ref": "#/components/schemas/ItineraryWrite"
       required:
-      - title
-      - startDate
-      - endDate
-      - itinerary
+      - id
+      - mode
+      - departure
+      - arrival
+      - date
+    TransportWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          type: string
+          minLength: 1
+        departure:
+          type: string
+          minLength: 1
+        arrival:
+          type: string
+          minLength: 1
+        date:
+          type: string
+          format: date
+      required:
+      - mode
+      - departure
+      - arrival
+      - date
     Travel:
       type: object
       additionalProperties: false
       properties:
-        travelId:
+        id:
           type: string
           format: uuid
-        createdAt:
+        managerId:
           type: string
-          format: date-time
-        updatedAt:
+          format: uuid
+          description: Immutable owner.
+        name:
           type: string
-          format: date-time
-        title:
+        description:
           type: string
-          minLength: 1
-          maxLength: 200
         startDate:
           type: string
           format: date
@@ -1081,47 +726,79 @@ components:
           format: date
         durationDays:
           type: integer
+          format: int64
           minimum: 1
           readOnly: true
-        itinerary:
-          "$ref": "#/components/schemas/Itinerary"
+          description: Inclusive calendar days.
+        capacity:
+          type: integer
+          minimum: 1
+        price:
+          type: number
+          minimum: 0
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+        status:
+          $ref: '#/components/schemas/TravelStatus'
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Increments on every mutation.
+        stops:
+          type: array
+          items:
+            $ref: '#/components/schemas/Stop'
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activity'
+        accommodations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Accommodation'
+        transports:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transport'
+        participantCount:
+          type: integer
+          minimum: 0
+        remainingCapacity:
+          type: integer
+          minimum: 0
+        bookable:
+          type: boolean
+          description: PUBLISHED, start date after today and remaining capacity above zero.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
       required:
-      - travelId
-      - createdAt
-      - updatedAt
-      - title
+      - id
+      - managerId
+      - name
+      - description
       - startDate
       - endDate
       - durationDays
-      - itinerary
-    DestinationPage:
-      type: object
-      additionalProperties: false
-      properties:
-        items:
-          type: array
-          items:
-            "$ref": "#/components/schemas/Destination"
-        page:
-          type: integer
-          minimum: 0
-        size:
-          type: integer
-          minimum: 1
-          maximum: 100
-        totalElements:
-          type: integer
-          format: int64
-          minimum: 0
-        totalPages:
-          type: integer
-          minimum: 0
-      required:
-      - items
-      - page
-      - size
-      - totalElements
-      - totalPages
+      - capacity
+      - price
+      - currency
+      - status
+      - version
+      - stops
+      - activities
+      - accommodations
+      - transports
+      - participantCount
+      - remainingCapacity
+      - bookable
+      - createdAt
+      - updatedAt
     TravelPage:
       type: object
       additionalProperties: false
@@ -1129,7 +806,7 @@ components:
         items:
           type: array
           items:
-            "$ref": "#/components/schemas/Travel"
+            $ref: '#/components/schemas/Travel'
         page:
           type: integer
           minimum: 0
@@ -1137,44 +814,87 @@ components:
           type: integer
           minimum: 1
           maximum: 100
-        totalElements:
+        total:
           type: integer
           format: int64
-          minimum: 0
-        totalPages:
-          type: integer
           minimum: 0
       required:
       - items
       - page
       - size
-      - totalElements
-      - totalPages
-    ParticipationPage:
+      - total
+    TravelStatus:
+      type: string
+      enum:
+      - DRAFT
+      - PUBLISHED
+      - UNPUBLISHED
+      - CANCELLED
+    TravelWrite:
       type: object
       additionalProperties: false
       properties:
-        items:
-          type: array
-          items:
-            "$ref": "#/components/schemas/Participation"
-        page:
-          type: integer
-          minimum: 0
-        size:
+        managerId:
+          type: string
+          format: uuid
+          nullable: true
+          description: ADMIN only and required for ADMIN; ignored for TRAVEL_MANAGER and never accepted on update.
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          description: Inclusive; not before startDate.
+        capacity:
           type: integer
           minimum: 1
-          maximum: 100
-        totalElements:
-          type: integer
-          format: int64
+        price:
+          type: number
           minimum: 0
-        totalPages:
-          type: integer
-          minimum: 0
+          description: Nonnegative decimal, stored as a decimal string; no floating-point rounding.
+        currency:
+          type: string
+          pattern: ^[A-Za-z]{3}$
+          description: Normalised to uppercase.
+        stops:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/StopWrite'
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityWrite'
+          description: May be empty but must be present.
+        accommodations:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccommodationWrite'
+          description: May be empty but must be present.
+        transports:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransportWrite'
+          description: May be empty but must be present.
       required:
-      - items
-      - page
-      - size
-      - totalElements
-      - totalPages
+      - name
+      - description
+      - startDate
+      - endDate
+      - capacity
+      - price
+      - currency
+      - stops
+      - activities
+      - accommodations
+      - transports
+      description: All stop, activity, accommodation and transport dates must fall inside startDate..endDate. Component ids
+        are server-generated.

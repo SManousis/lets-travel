@@ -4,12 +4,13 @@ import com.travelplan.common.security.ServiceSecurity;
 import com.travelplan.common.security.TokenAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Inherited admin APIs stay ADMIN-only until Phase 2 opens them to other roles.
- * /internal endpoints are not routed by the gateway and check the internal service token themselves.
+ * Read access starts at traveler capability. Listing mutations start at travel-manager capability and
+ * enforce ownership in the controller; destination catalogue writes remain administrator-only.
  */
 @Configuration
 public class SecurityConfig {
@@ -19,7 +20,11 @@ public class SecurityConfig {
         return ServiceSecurity.apply(http, tokens)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**", "/error", "/internal/**").permitAll()
-                        .requestMatchers("/api/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/destinations", "/api/destinations/**")
+                            .hasRole("TRAVELER")
+                        .requestMatchers("/api/destinations", "/api/destinations/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/travels", "/api/travels/**").hasRole("TRAVELER")
+                        .requestMatchers("/api/travels", "/api/travels/**").hasRole("TRAVEL_MANAGER")
                         .anyRequest().denyAll())
                 .build();
     }

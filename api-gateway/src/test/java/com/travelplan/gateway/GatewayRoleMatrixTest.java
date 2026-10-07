@@ -49,8 +49,9 @@ class GatewayRoleMatrixTest {
         MATRIX.put("/api/me", Role.TRAVELER);
         MATRIX.put("/api/travelers", Role.TRAVELER);
         MATRIX.put("/api/users", Role.ADMIN);
-        MATRIX.put("/api/travels", Role.ADMIN);
-        MATRIX.put("/api/destinations", Role.ADMIN);
+        MATRIX.put("/api/travels", Role.TRAVELER);
+        MATRIX.put("/api/managers", Role.TRAVELER);
+        MATRIX.put("/api/destinations", Role.TRAVELER); // reads; writes are ADMIN-only, see below
         MATRIX.put("/api/payment-methods", Role.ADMIN);
         MATRIX.put("/api/payment-gateways", Role.ADMIN);
     }
@@ -61,7 +62,7 @@ class GatewayRoleMatrixTest {
     @DynamicPropertySource
     static void urls(DynamicPropertyRegistry registry) {
         String url = "http://127.0.0.1:" + UPSTREAM.getAddress().getPort();
-        for (String service : new String[] {"auth", "users", "travel", "payments"}) registry.add("services." + service + ".url", () -> url);
+        for (String service : new String[] {"auth", "users", "travel", "payments", "engagement"}) registry.add("services." + service + ".url", () -> url);
         registry.add("auth.service-url", () -> url);
     }
 
@@ -102,9 +103,20 @@ class GatewayRoleMatrixTest {
         assertThat(failures).isEmpty();
     }
 
+    @Test void destinationWritesStayAdminOnly() throws Exception {
+        for (Role role : Role.values()) {
+            int status = call("POST", "/api/destinations", CODEC.issue(UUID.randomUUID(), role, UUID.randomUUID()).value());
+            assertThat(status).as("POST /api/destinations as " + role).isEqualTo(role == Role.ADMIN ? 200 : 403);
+        }
+    }
+
     private int call(String path, String bearer) throws Exception {
+        return call("GET", path, bearer);
+    }
+
+    private int call(String method, String path, String bearer) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
-                .timeout(Duration.ofSeconds(30)).GET();
+                .timeout(Duration.ofSeconds(30)).method(method, HttpRequest.BodyPublishers.noBody());
         if (bearer != null) request.header("Authorization", "Bearer " + bearer);
         try (HttpClient client = HttpClient.newHttpClient()) {
             return client.send(request.build(), HttpResponse.BodyHandlers.discarding()).statusCode();

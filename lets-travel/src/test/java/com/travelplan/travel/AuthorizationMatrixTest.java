@@ -27,18 +27,19 @@ class AuthorizationMatrixTest {
     private static final HttpServer AUTH = AuthorizationMatrix.activeSessionsAuthServer();
 
     static final List<Endpoint> MATRIX = List.of(
-            endpoint("GET", "/api/destinations", Access.ADMIN),
+            endpoint("GET", "/api/destinations", Access.TRAVELER),
             endpoint("POST", "/api/destinations", Access.ADMIN),
-            endpoint("GET", "/api/destinations/{id}", Access.ADMIN),
+            endpoint("GET", "/api/destinations/{id}", Access.TRAVELER),
             endpoint("PATCH", "/api/destinations/{id}", Access.ADMIN),
             endpoint("DELETE", "/api/destinations/{id}", Access.ADMIN),
-            endpoint("GET", "/api/travels", Access.ADMIN),
-            endpoint("POST", "/api/travels", Access.ADMIN),
-            endpoint("GET", "/api/travels/{id}", Access.ADMIN),
-            endpoint("PATCH", "/api/travels/{id}", Access.ADMIN),
-            endpoint("DELETE", "/api/travels/{id}", Access.ADMIN),
-            endpoint("POST", "/api/travels/{id}/travelers/{travelerId}", Access.ADMIN),
-            endpoint("DELETE", "/api/travels/{id}/travelers/{travelerId}", Access.ADMIN),
+            endpoint("GET", "/api/travels", Access.TRAVELER),
+            endpoint("POST", "/api/travels", Access.TRAVEL_MANAGER),
+            endpoint("GET", "/api/travels/{id}", Access.TRAVELER),
+            endpoint("PUT", "/api/travels/{id}", Access.TRAVEL_MANAGER),
+            endpoint("DELETE", "/api/travels/{id}", Access.TRAVEL_MANAGER),
+            endpoint("POST", "/api/travels/{id}/publication", Access.TRAVEL_MANAGER),
+            endpoint("DELETE", "/api/travels/{id}/publication", Access.TRAVEL_MANAGER),
+            endpoint("GET", "/internal/managers/{managerId}/travel-statistics", Access.INTERNAL),
             endpoint("POST", "/internal/travelers/cleanup", Access.INTERNAL));
 
     @Autowired ApplicationContext context;

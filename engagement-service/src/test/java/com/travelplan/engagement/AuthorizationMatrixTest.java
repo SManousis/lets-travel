@@ -27,7 +27,8 @@ class AuthorizationMatrixTest {
     private static final HttpServer AUTH = AuthorizationMatrix.activeSessionsAuthServer();
 
     static final List<Endpoint> MATRIX = List.of(
-);
+            endpoint("GET", "/api/managers/{managerId}", Access.TRAVELER)
+    );
 
     @Autowired ApplicationContext context;
     @Autowired AccessTokenCodec codec;

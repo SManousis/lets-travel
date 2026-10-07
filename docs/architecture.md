@@ -11,9 +11,9 @@ and [API contracts](api/README.md) for implementation scope.
 | API gateway | Routing, entry-point authentication and authorization | 8080 / 9080 | All `/api/**` below |
 | Auth service | Credentials, roles, sessions, revocation state | 8081 / 9081 | `/api/auth/**` |
 | User service | User profiles, travelers, user lifecycle coordination | 8082 / 9082 | `/api/users/**`, `/api/travelers/**` |
-| Travel service | Travels, destinations, ordered itineraries, participation | 8083 / 9083 | `/api/travels/**`, `/api/destinations/**` |
+| Travel service | Manager-owned travels, destinations, ordered itineraries, participation | 8083 / 9083 | `/api/travels/**`, `/api/destinations/**` |
 | Payment service | Saved provider references, gateway settings, provider operations | 8084 / 9084 | `/api/payment-methods/**`, `/api/payment-gateways/**` |
-| Engagement service | Subscriptions, cancellation history, feedback, reports, dashboard projections (PostgreSQL `travel_engagement`) | 8085 / 9085 | Not routed yet |
+| Engagement service | Subscriptions, cancellation history, feedback, reports, dashboard projections (PostgreSQL `travel_engagement`) | 8085 / 9085 | `/api/managers/**` |
 | Search service | Search/autocomplete API and the Elasticsearch travel index | 8086 / 9086 | Not routed yet |
 
 Local development binds application and management listeners to loopback. The
@@ -149,6 +149,37 @@ service gains an endpoint the matrix does not list. `GatewayRoleMatrixTest` does
 the same for every routed path at the gateway. `/internal/**` endpoints refuse any
 request without the internal service token before a controller runs.
 
+## Manager-owned travel offerings (Phase 2)
+
+- **Ownership.** Every travel has an immutable `managerId`. A `TRAVEL_MANAGER`
+  creates listings for their own token user; an `ADMIN` supplies the id of an
+  active manager, which travel-service verifies with user-service. Update payloads
+  never replace the owner. The gateway requires only a signed-in user
+  (`TRAVELER`) for `/api/travels/**` and `/api/managers/**`; travel-service enforces
+  ownership from the verified token. A non-admin asking for another manager's private
+  or missing listing gets `404`, and travelers see only bookable listings.
+- **Legacy quarantine.** At startup, `Travel` nodes without `managerId` lose the
+  `Travel` label and gain `LegacyTravelNeedsReview`. They never appear in normal
+  queries, and no owner is invented for them. The step is repeat-safe.
+- **Lifecycle.** `DRAFT` -> `PUBLISHED` (`POST /api/travels/{id}/publication`),
+  `PUBLISHED` -> `UNPUBLISHED` (`DELETE /api/travels/{id}/publication`; a `DRAFT`
+  or already `UNPUBLISHED` listing is returned unchanged), `UNPUBLISHED` -> `PUBLISHED`; `CANCELLED` is terminal and not editable. Publishing
+  needs a complete listing (description, capacity, stop, valid itinerary) and a
+  future start date, else `409 PUBLICATION_NOT_READY`. Both operations are
+  idempotent and emit no event when the state does not change.
+- **Events.** Each mutation increments `version` and writes one `TravelEvent` in the
+  same Neo4j transaction, ordered by `(aggregateId, aggregateVersion)`. Delivery is
+  completed in Phase 10.
+- **Internal calls.** engagement-service builds the manager page from two
+  token-protected reads, both sent with `X-Internal-Service-Token` and neither routed
+  by the gateway: user-service `GET /internal/managers/{id}` (safe summary) and
+  travel-service `GET /internal/managers/{managerId}/travel-statistics`. Travel-service
+  also calls user-service to confirm an administrator-supplied manager is active.
+  Unreachable dependencies produce `503 DEPENDENCY_UNAVAILABLE`.
+- **Manager page.** `GET /api/managers/{managerId}` returns `completedTravels` and
+  `totalTravels`. Until ratings and reports exist, `averageRating` is `null`,
+  `recentRatings` is `[]` and `reportCount` is `0`; these are truthful empty values.
+
 ## Service dependencies
 
 - A service reads and writes only its own store. No service connects to another
@@ -157,8 +188,8 @@ request without the internal service token before a controller runs.
   (request tracing) and no domain classes. Depending on another service's module
   is rejected by the build (Maven Enforcer rule in the parent `pom.xml`).
 - Derived data moves by events, described in [events](events.md). Direct HTTP calls
-  between services are limited to token validation, payment confirmation and
-  internal snapshots, each with a machine token.
+  between services are limited to token validation, payment confirmation, manager
+  summary and travel-statistics reads, and internal snapshots, each with a machine token.
 
 ## Data flow: from a travel write to every read model
 
