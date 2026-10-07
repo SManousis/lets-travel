@@ -9,7 +9,7 @@ pipeline {
       }
     }
     stage('Backend verification') {
-      steps { sh './mvnw -B -ntp verify' }
+      steps { sh './mvnw -B -ntp clean verify' }
     }
     stage('API contracts') {
       steps { sh 'npm ci && npm run lint:api' }

@@ -130,7 +130,7 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 - [x] Reject stale, tampered, expired, revoked, wrong-issuer, wrong-audience, and unsupported-role tokens.
 - [x] Add an authorization matrix test covering every new endpoint for unauthenticated, wrong-role, right-role, owner, and non-owner access.
 - [x] Verify the same denials when a service is called directly and the gateway is bypassed.
-- [ ] **Completion gate:** All three roles can sign in and access exactly their permitted routes; forbidden cross-user and direct-service operations are covered by automated tests and return `403` (role too low) or `404` (another user's resource) without leaking data. Cross-manager travel cases are added with manager-owned travels in Phase 2.
+- [x] **Completion gate:** All three roles can sign in and access exactly their permitted routes; forbidden cross-user and direct-service operations are covered by automated tests and return `403` (role too low) or `404` (another user's resource) without leaking data. Cross-manager travel cases are added with manager-owned travels in Phase 2.
 
 ## Phase 2 — Manager-owned travel offerings and public profiles
 
@@ -140,17 +140,19 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 
 **Main files:** `travel-service/src/main/`, `user-service/src/main/`, Neo4j constraints, `docs/api/travels.yaml`, new manager-profile API contract, matching tests.
 
-- [ ] Add immutable `managerId` ownership to every travel and backfill or explicitly retire legacy ownerless records.
-- [ ] Let managers create, view, update, publish/unpublish, and delete their own travel offerings.
-- [ ] Let Admins perform the same operations for any manager and let Travelers read only published, bookable offerings.
-- [ ] Prevent manager ownership reassignment through normal update APIs; provide a separate audited Admin operation if reassignment is required.
-- [ ] Preserve complete travel details used by search and recommendations: destinations, dates, activities, accommodation, transport, capacity, price/currency, and lifecycle status.
-- [ ] Validate date ranges, capacity, nonnegative prices, currency, itinerary bounds, and publication readiness.
-- [ ] Prevent edits that would invalidate confirmed subscriptions; define allowed post-subscription changes and notify affected subscribers.
-- [ ] Add a public manager page API containing manager summary, completed-travel statistics, past ratings, and report count without exposing private report content.
-- [ ] Emit versioned travel-created/updated/published/unpublished/deleted events for downstream search and analytics projections.
-- [ ] Add tests for Admin override, manager ownership, published visibility, invalid changes, and concurrent updates.
-- [ ] **Completion gate:** Two manager accounts can independently manage their own listings, cannot mutate each other's listings, and travelers can browse only eligible published offerings and view safe manager profiles.
+- [x] Add immutable `managerId` ownership to every travel and backfill or explicitly retire legacy ownerless records.
+- [x] Let managers create, view, update, publish/unpublish, and delete their own travel offerings.
+- [x] Let Admins perform the same operations for any manager and let Travelers read only published, bookable offerings.
+- [x] Prevent manager ownership reassignment through normal update APIs; provide a separate audited Admin operation if reassignment is required.
+- [x] Preserve complete travel details used by search and recommendations: destinations, dates, activities, accommodation, transport, capacity, price/currency, and lifecycle status.
+- [x] Validate date ranges, capacity, nonnegative prices, currency, itinerary bounds, and publication readiness.
+- [ ] Prevent edits that would invalidate confirmed subscriptions; define allowed post-subscription changes and notify affected subscribers. Deferred to Phase 3: needs subscriptions; capacity below occupancy is already rejected.
+- [x] Add a public manager page API containing manager summary, completed-travel statistics, past ratings, and report count without exposing private report content. Ratings and reports are empty/zero until Phase 6.
+- [x] Emit versioned travel-created/updated/published/unpublished/deleted events for downstream search and analytics projections.
+- [x] Add tests for Admin override, manager ownership, published visibility, invalid changes, and concurrent updates.
+- [x] **Completion gate:** Two manager accounts can independently manage their own listings, cannot mutate each other's listings, and travelers can browse only eligible published offerings and view safe manager profiles.
+
+Evidence: `docs/audit/phase-2-verification-2026-10-07.md`.
 
 ## Phase 3 — Subscriptions, subscriber management, and cancellation policy
 
