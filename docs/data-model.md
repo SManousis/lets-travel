@@ -37,9 +37,14 @@ graph LR
     R -->|TO_STOP| S2[DestinationStop]
     S2 -->|AT| D2[Destination]
     T -->|HAS_PARTICIPANT| P[Participation]
+    E[TravelEvent] -.->|aggregateId| T
 ```
 
-`Travel` stores title, dates, and duration (derived, never client supplied).
+`Travel` stores `managerId` (immutable owner user UUID, an external reference),
+`name`, `description`, dates, derived duration (never client supplied), `capacity`,
+`price` (decimal string, mapped to `BigDecimal`), `currency` (uppercase three letters),
+`status` (`DRAFT`, `PUBLISHED`, `UNPUBLISHED`, `CANCELLED`), `version`, `createdAt` and
+`updatedAt`. An index on `managerId` serves owner-scoped lists.
 `DestinationStop` stores UUID, unique zero-based position within a travel, arrival
 and departure dates; its destination is a shared `Destination` with name, country
 code, and optional description. This graph allows ordered multi-stop itineraries,
@@ -75,6 +80,22 @@ participation nodes, and relationships in one transaction. It preserves every
 admins first replace/remove stops (retaining at least one stop on every surviving
 travel), or delete the relevant trips. Deleting a user/traveler removes only
 participation, leaving other participants and the full travel aggregate intact.
+
+### Phase 2 ownership, legacy data and events
+
+- `Travel` nodes without `managerId` are relabelled `LegacyTravelNeedsReview` at
+  startup (repeat-safe). Their itinerary is kept for inspection and is invisible to
+  every normal query; ownership is never backfilled.
+- `TravelEvent` nodes are written in the same transaction as each mutation and carry
+  `eventId`, `eventType` (`TRAVEL_CREATED`, `TRAVEL_UPDATED`, `TRAVEL_PUBLISHED`,
+  `TRAVEL_UNPUBLISHED`, `TRAVEL_DELETED`), `aggregateId`, `aggregateVersion`,
+  `occurredAt` and a versioned JSON `payload` (`schemaVersion` 1) holding the full
+  projection. Constraints make `eventId` and `(aggregateId, aggregateVersion)` unique.
+- `remainingCapacity` and `bookable` are response projections, not stored. A listing
+  is bookable when `PUBLISHED`, starting after today, with places left.
+- The manager page has no store of its own in Phase 2: completed and total counts come
+  from travel-service statistics. `averageRating` is `null`, `recentRatings` is empty
+  and `reportCount` is `0` until later phases add ratings and reports.
 
 ## States and payment data
 

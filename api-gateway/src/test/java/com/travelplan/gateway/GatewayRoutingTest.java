@@ -32,7 +32,8 @@ class GatewayRoutingTest {
 
     private static final Map<String, HttpServer> UPSTREAMS = Map.of(
             "auth", upstream("auth"), "users", upstream("users"),
-            "travel", upstream("travel"), "payments", upstream("payments"));
+            "travel", upstream("travel"), "payments", upstream("payments"),
+            "engagement", upstream("engagement"));
     private static final HttpServer VALIDATOR = validator();
     private static final AtomicReference<String> VALIDATION_REQUEST_ID = new AtomicReference<>();
 
@@ -61,6 +62,8 @@ class GatewayRoutingTest {
             "GET, /api/travels, travel",
             "PUT, /api/travels/123/itinerary, travel",
             "GET, /api/destinations, travel",
+            "GET, /api/managers/123, engagement",
+            "GET, /api/managers/123/extra, engagement",
             "POST, /api/payment-methods, payments",
             "DELETE, /api/payment-gateways/123, payments"
     })
@@ -126,7 +129,8 @@ class GatewayRoutingTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"/api/unknown", "/api/users-extra", "/internal/cleanup", "/actuator/env"})
+    @CsvSource({"/api/unknown", "/api/users-extra", "/internal/cleanup", "/actuator/env", "/api/managers-extra",
+            "/internal/managers/123", "/internal/managers/123/travel-statistics"})
     void doesNotRouteUnownedOrPrivatePaths(String path) throws Exception {
         var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .timeout(Duration.ofSeconds(30)).GET();

@@ -49,7 +49,8 @@ class GatewayRoleMatrixTest {
         MATRIX.put("/api/me", Role.TRAVELER);
         MATRIX.put("/api/travelers", Role.TRAVELER);
         MATRIX.put("/api/users", Role.ADMIN);
-        MATRIX.put("/api/travels", Role.ADMIN);
+        MATRIX.put("/api/travels", Role.TRAVELER);
+        MATRIX.put("/api/managers", Role.TRAVELER);
         MATRIX.put("/api/destinations", Role.ADMIN);
         MATRIX.put("/api/payment-methods", Role.ADMIN);
         MATRIX.put("/api/payment-gateways", Role.ADMIN);
@@ -61,7 +62,7 @@ class GatewayRoleMatrixTest {
     @DynamicPropertySource
     static void urls(DynamicPropertyRegistry registry) {
         String url = "http://127.0.0.1:" + UPSTREAM.getAddress().getPort();
-        for (String service : new String[] {"auth", "users", "travel", "payments"}) registry.add("services." + service + ".url", () -> url);
+        for (String service : new String[] {"auth", "users", "travel", "payments", "engagement"}) registry.add("services." + service + ".url", () -> url);
         registry.add("auth.service-url", () -> url);
     }
 

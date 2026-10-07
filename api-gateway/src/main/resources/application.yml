@@ -18,6 +18,10 @@ spring:
               uri: ${services.travel.url}
               predicates:
                 - Path=/api/travels,/api/travels/**,/api/destinations,/api/destinations/**
+            - id: engagement
+              uri: ${services.engagement.url}
+              predicates:
+                - Path=/api/managers,/api/managers/**
             - id: payments
               uri: ${services.payments.url}
               predicates:
@@ -31,6 +35,8 @@ services:
     url: ${TRAVEL_SERVICE_URL:http://127.0.0.1:8083}
   payments:
     url: ${PAYMENT_SERVICE_URL:http://127.0.0.1:8084}
+  engagement:
+    url: ${ENGAGEMENT_SERVICE_URL:http://127.0.0.1:8085}
 auth:
   service-url: ${AUTH_SERVICE_URL:http://127.0.0.1:8081}
 server:

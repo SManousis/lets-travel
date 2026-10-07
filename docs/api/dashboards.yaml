@@ -37,8 +37,12 @@ paths:
       operationId: getManagerPage
       summary: Public page of a travel manager
       x-required-role: TRAVELER
-      description: Statistics, recent ratings and the number of upheld reports. Report
-        contents and reporters are never shown.
+      description: Completed and total listing counts, recent ratings, average rating
+        and the number of upheld reports. Report contents and reporters are never shown.
+        In Phase 2 averageRating is null, recentRatings is empty and reportCount is 0.
+        404 NOT_FOUND for an unknown or non-manager id; 503 DEPENDENCY_UNAVAILABLE when
+        user-service or travel-service cannot answer. The internal reads behind this page
+        are not routed by the gateway.
       parameters:
       - "$ref": "#/components/parameters/ManagerId"
       responses:
@@ -368,6 +372,9 @@ components:
     ManagerPage:
       type: object
       additionalProperties: false
+      description: Phase 2 shape served by engagement-service from user-service and
+        travel-service internal reads. Rating and report data arrive in a later phase;
+        until then averageRating is null, recentRatings is empty and reportCount is 0.
       properties:
         managerId:
           type: string
@@ -376,18 +383,21 @@ components:
           type: string
         memberSince:
           type: string
-          format: date
+          format: date-time
         completedTravels:
           type: integer
+          format: int64
           minimum: 0
-        upcomingTravels:
+          description: Listings whose end date is before today.
+        totalTravels:
           type: integer
+          format: int64
           minimum: 0
-        totalTravelers:
-          type: integer
-          minimum: 0
-        rating:
-          "$ref": "#/components/schemas/RatingSummary"
+        averageRating:
+          type: number
+          format: double
+          nullable: true
+          description: Null until ratings exist.
         recentRatings:
           type: array
           maxItems: 10
@@ -395,22 +405,18 @@ components:
             "$ref": "#/components/schemas/PublicRating"
         reportCount:
           type: integer
+          format: int64
           minimum: 0
           description: Upheld (RESOLVED) reports against this manager.
-        asOf:
-          type: string
-          format: date-time
       required:
       - managerId
       - displayName
       - memberSince
       - completedTravels
-      - upcomingTravels
-      - totalTravelers
-      - rating
+      - totalTravels
+      - averageRating
       - recentRatings
       - reportCount
-      - asOf
     TravelSummary:
       type: object
       additionalProperties: false
