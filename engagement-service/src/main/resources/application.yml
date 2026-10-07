@@ -6,6 +6,16 @@ spring:
 server:
   address: ${SERVER_ADDRESS:127.0.0.1}
   port: ${SERVER_PORT:8085}
+auth:
+  service-url: ${AUTH_SERVICE_URL:http://127.0.0.1:8081}
+security:
+  token-secret: ${AUTH_TOKEN_SECRET:replace-with-at-least-32-random-characters}
+  internal-service-token: ${AUTH_INTERNAL_SERVICE_TOKEN:change-me-internal}
+services:
+  users:
+    url: ${USER_SERVICE_URL:http://127.0.0.1:8082}
+  travel:
+    url: ${TRAVEL_SERVICE_URL:http://127.0.0.1:8083}
 management:
   server:
     address: ${MANAGEMENT_ADDRESS:127.0.0.1}
