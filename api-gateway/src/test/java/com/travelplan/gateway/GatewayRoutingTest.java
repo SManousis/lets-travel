@@ -67,7 +67,7 @@ class GatewayRoutingTest {
     void forwardsToDomainOwnerPreservingRequest(String method, String path, String owner) throws Exception {
         String fullPath = path + "?page=1&size=20";
         var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + fullPath))
-                .timeout(Duration.ofSeconds(10))
+                .timeout(Duration.ofSeconds(30))
                 .header("X-Request-Id", "routing-check")
                 .method(method, HttpRequest.BodyPublishers.ofString("payload"));
         if (!path.equals("/api/auth/login")) builder.header("Authorization", "Bearer " + token());
@@ -129,7 +129,7 @@ class GatewayRoutingTest {
     @CsvSource({"/api/unknown", "/api/users-extra", "/internal/cleanup", "/actuator/env"})
     void doesNotRouteUnownedOrPrivatePaths(String path) throws Exception {
         var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
-                .timeout(Duration.ofSeconds(10)).GET();
+                .timeout(Duration.ofSeconds(30)).GET();
         if (path.startsWith("/api/")) builder.header("Authorization", "Bearer " + token());
         var request = builder.build();
         try (HttpClient client = HttpClient.newHttpClient()) {

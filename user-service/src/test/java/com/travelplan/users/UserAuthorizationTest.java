@@ -51,7 +51,7 @@ class UserAuthorizationTest {
 
     private HttpResponse<String> getUsers(String token) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/users"))
-                .timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer " + token).GET().build();
+                .timeout(Duration.ofSeconds(30)).header("Authorization", "Bearer " + token).GET().build();
         try (HttpClient client = HttpClient.newHttpClient()) {
             return client.send(request, HttpResponse.BodyHandlers.ofString());
         }

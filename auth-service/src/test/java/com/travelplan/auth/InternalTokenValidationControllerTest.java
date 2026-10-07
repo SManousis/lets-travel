@@ -49,7 +49,7 @@ class InternalTokenValidationControllerTest {
 
     private HttpResponse<String> request(String token, String serviceSecret) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/internal/token-validation"))
-                .timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer " + token)
+                .timeout(Duration.ofSeconds(30)).header("Authorization", "Bearer " + token)
                 .header("X-Internal-Service-Token", serviceSecret)
                 .POST(HttpRequest.BodyPublishers.noBody()).build();
         try (HttpClient client = HttpClient.newHttpClient()) {

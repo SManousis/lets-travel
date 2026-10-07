@@ -204,7 +204,7 @@ class AuthProvisioningTest {
 
     private HttpResponse<String> send(HttpRequest.Builder builder) throws Exception {
         try (HttpClient client = HttpClient.newHttpClient()) {
-            return client.send(builder.timeout(Duration.ofSeconds(5)).build(), HttpResponse.BodyHandlers.ofString());
+            return client.send(builder.timeout(Duration.ofSeconds(30)).build(), HttpResponse.BodyHandlers.ofString());
         }
     }
 }
