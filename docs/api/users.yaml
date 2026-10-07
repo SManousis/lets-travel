@@ -6,7 +6,9 @@ info:
   description: 'Target contract. The current user DELETE is synchronous and returns
     an empty 202 while cleanup remains or 204 when complete; it does not yet expose
     the operation resource or Location response described below. See docs/operations.md
-    for the implemented retry procedure.'
+    for the implemented retry procedure. User creation is currently synchronous: it
+    returns 201 with the profile and a one-time `passwordSetup` link (token and expiry)
+    for the new user. Sign-up, password setup and /api/me are implemented as specified.'
 servers:
 - url: http://localhost:8080
   description: Loopback development gateway; deployment requires HTTPS.
@@ -192,6 +194,98 @@ paths:
       description: Revoke access before cleanup; remove owned traveler/payment data
         and travel participation, preserve shared travels/destinations. Pending profile
         remains readable. Last-admin and self-deletion return 409.
+  "/api/me":
+    get:
+      operationId: getMyProfile
+      summary: Read the signed-in user's own profile
+      description: The user is taken from the verified access token, never from the
+        request. The bootstrap admin has no profile, so only its ID and role are set.
+      x-required-role: TRAVELER
+      responses:
+        '200':
+          description: The caller's profile.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Me"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/registrations":
+    post:
+      operationId: register
+      summary: Sign up as a traveler
+      description: Public. Always creates a TRAVELER; a role in the body is ignored.
+        Higher roles are granted only by an admin.
+      security: []
+      x-required-role: NONE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/Registration"
+      responses:
+        '201':
+          description: Account created; sign in with the chosen password.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Me"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/password-setup":
+    post:
+      operationId: completePasswordSetup
+      summary: Choose a password with a one-time setup link
+      description: Public. The token is valid for 72 hours and only once; issuing a new
+        link for the user invalidates older ones. Setting the password ends the user's
+        existing sessions. An invalid, expired or used token returns 400
+        `INVALID_SETUP_TOKEN`. If auth-service is unavailable the token stays valid.
+      security: []
+      x-required-role: NONE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/PasswordSetup"
+      responses:
+        '204':
+          description: Password set.
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/users/{userId}/password-setup":
+    post:
+      operationId: issuePasswordSetupLink
+      summary: Issue a new one-time password setup link
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: A new link; earlier links for the user stop working.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SetupLink"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
   "/api/travelers":
     get:
       operationId: listTravelers
@@ -620,6 +714,100 @@ components:
       - traceId
       - createdAt
       - updatedAt
+    Me:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+          nullable: true
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - TRAVEL_MANAGER
+          - TRAVELER
+        status:
+          type: string
+        memberSince:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - userId
+      - email
+      - firstName
+      - lastName
+      - role
+      - status
+      - memberSince
+    Registration:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        password:
+          type: string
+          format: password
+          minLength: 10
+          maxLength: 72
+          description: At most 72 bytes in UTF-8 (the BCrypt limit); longer input returns 400.
+          writeOnly: true
+      required:
+      - email
+      - firstName
+      - lastName
+      - password
+    PasswordSetup:
+      type: object
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          maxLength: 128
+        password:
+          type: string
+          format: password
+          minLength: 10
+          maxLength: 72
+          description: At most 72 bytes in UTF-8 (the BCrypt limit); longer input returns 400.
+          writeOnly: true
+      required:
+      - token
+      - password
+    SetupLink:
+      type: object
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+      - token
+      - expiresAt
     UserCreate:
       type: object
       additionalProperties: false
@@ -638,7 +826,8 @@ components:
             type: string
             enum:
             - ADMIN
-            - USER
+            - TRAVEL_MANAGER
+            - TRAVELER
           minItems: 1
           uniqueItems: true
         password:
@@ -670,7 +859,8 @@ components:
             type: string
             enum:
             - ADMIN
-            - USER
+            - TRAVEL_MANAGER
+            - TRAVELER
           minItems: 1
           uniqueItems: true
         status:
@@ -706,7 +896,8 @@ components:
             type: string
             enum:
             - ADMIN
-            - USER
+            - TRAVEL_MANAGER
+            - TRAVELER
           minItems: 1
           uniqueItems: true
         status:

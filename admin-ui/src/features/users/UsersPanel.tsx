@@ -16,6 +16,7 @@ export function UsersPanel({ context, active }: { context: ApiContext; active: b
   const [userBusy, setUserBusy] = React.useState(false);
   const [userError, setUserError] = React.useState("");
   const [userNotice, setUserNotice] = React.useState("");
+  const [setupLink, setSetupLink] = React.useState("");
   const [travelerPage, setTravelerPage] = React.useState(0);
   const [travelerList, setTravelerList] = React.useState<Page<Traveler> | null>(null);
   const [newTraveler, setNewTraveler] = React.useState(emptyTraveler);
@@ -63,15 +64,16 @@ export function UsersPanel({ context, active }: { context: ApiContext; active: b
   }
 
   async function createUser(event: React.FormEvent) {
-    event.preventDefault(); setUserBusy(true); setUserError(""); setUserNotice("");
+    event.preventDefault(); setUserBusy(true); setUserError(""); setUserNotice(""); setSetupLink("");
     try {
       const body = JSON.stringify(newUser);
       if (createAttempt.current?.body !== body) createAttempt.current = { body, key: newKey() };
-      const user = await api<User>(context, "/api/users", {
+      const user = await api<User & { passwordSetup?: { token: string; expiresAt: string } }>(context, "/api/users", {
         method: "POST", headers: { "Idempotency-Key": createAttempt.current.key }, body: newUser,
       });
       createAttempt.current = null;
-      setNewUser(emptyUser); setUserNotice("User created. Arrange their initial credentials through the operator process.");
+      setNewUser(emptyUser); setUserNotice("User created. Send them this one-time link to choose a password:");
+      setSetupLink(user.passwordSetup ? `${window.location.origin}/#/set-password?token=${encodeURIComponent(user.passwordSetup.token)}` : "");
       chooseUser(user); await loadUsers();
     } catch (error) { setUserError(errorMessage(error)); }
     finally { setUserBusy(false); }
@@ -162,6 +164,8 @@ export function UsersPanel({ context, active }: { context: ApiContext; active: b
       </section>
     </div>
     {userNotice && <Message kind="success">{userNotice}</Message>}
+    {setupLink && <label className="setup-link">Password setup link (valid for 72 hours)
+      <input readOnly value={setupLink} onFocus={event => event.currentTarget.select()} /></label>}
     {selected && <>
       <section className="workspace-card" aria-labelledby="edit-user-title">
         <div className="card-heading"><div><h3 id="edit-user-title">{selected.firstName} {selected.lastName}</h3>

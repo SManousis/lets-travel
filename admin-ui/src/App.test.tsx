@@ -7,7 +7,9 @@ function json(data: unknown): Response {
   return new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } });
 }
 
-beforeEach(() => sessionStorage.clear());
+const adminMe = { userId: "a1", email: null, firstName: null, lastName: null, role: "ADMIN", status: "ACTIVE", memberSince: null };
+
+beforeEach(() => { sessionStorage.clear(); window.location.hash = ""; });
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -25,6 +27,7 @@ it("keeps the admin workspace behind sign-in and opens it after a valid login", 
       expect(JSON.parse(String(options?.body))).toEqual({ username: "admin", password: "secret" });
       return json({ accessToken: "admin-token", expiresAt });
     }
+    if (String(input) === "/api/me") return json(adminMe);
     if (String(input) === "/api/users?page=0&size=10") {
       usersAuthorization = new Headers(options?.headers).get("Authorization") ?? "";
       return json({ items: [], page: 0, size: 10, total: 0 });
@@ -52,19 +55,21 @@ it("shows an authentication error and leaves the workspace locked after rejected
   await user.type(screen.getByLabelText("Password"), "wrong-password");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Invalid administrator credentials.");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Invalid email or password.");
   expect(screen.queryByRole("navigation", { name: "Admin sections" })).not.toBeInTheDocument();
   expect(sessionStorage.getItem("travelPlanToken")).toBeNull();
 });
 
-it("removes a stored session when its expiration time arrives", () => {
+it("removes a stored session when its expiration time arrives", async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-10-01T10:00:00Z"));
   sessionStorage.setItem("travelPlanToken", "admin-token");
   sessionStorage.setItem("travelPlanTokenExpiresAt", String(Math.floor(Date.now() / 1000) + 1));
-  vi.stubGlobal("fetch", vi.fn(async () => json({ items: [], page: 0, size: 10, total: 0 })));
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) =>
+    String(input) === "/api/me" ? json(adminMe) : json({ items: [], page: 0, size: 10, total: 0 })));
 
   render(<App />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   expect(screen.getByRole("navigation", { name: "Admin sections" })).toBeInTheDocument();
   act(() => vi.advanceTimersByTime(1_000));
 
@@ -82,4 +87,72 @@ it("returns to sign-in when a protected request receives 401", async () => {
   expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   expect(sessionStorage.getItem("travelPlanToken")).toBeNull();
   expect(screen.queryByRole("navigation", { name: "Admin sections" })).not.toBeInTheDocument();
+});
+
+it("shows travelers their account instead of the admin workspace", async () => {
+  sessionStorage.setItem("travelPlanToken", "traveler-token");
+  sessionStorage.setItem("travelPlanTokenExpiresAt", String(Math.floor(Date.now() / 1000) + 300));
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    if (String(input) === "/api/me") {
+      return json({ userId: "t1", email: "ada@example.com", firstName: "Ada", lastName: "Lovelace",
+        role: "TRAVELER", status: "ACTIVE", memberSince: "2026-10-01T00:00:00Z" });
+    }
+    throw new Error(`Unexpected request: ${String(input)}`);
+  }));
+
+  render(<App />);
+  expect(await screen.findByRole("heading", { name: "Your account" })).toBeInTheDocument();
+  expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+  expect(screen.getAllByText("Traveler").length).toBeGreaterThan(0);
+  expect(screen.queryByRole("navigation", { name: "Admin sections" })).not.toBeInTheDocument();
+});
+
+it("lets a visitor sign up and then sign in with the new email", async () => {
+  const user = userEvent.setup();
+  let registration: unknown;
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
+    if (String(input) === "/api/registrations") {
+      registration = JSON.parse(String(options?.body));
+      return new Response(JSON.stringify({ userId: "n1" }), { status: 201 });
+    }
+    throw new Error(`Unexpected request: ${String(input)}`);
+  }));
+  window.location.hash = "#/register";
+
+  render(<App />);
+  await user.type(screen.getByLabelText("Email"), "new@example.com");
+  await user.type(screen.getByLabelText("First name"), "New");
+  await user.type(screen.getByLabelText("Last name"), "Traveler");
+  await user.type(screen.getByLabelText("Password"), "Chosen-Secret-1");
+  await user.click(screen.getByRole("button", { name: "Create account" }));
+
+  expect(await screen.findByRole("status")).toHaveTextContent("Account created.");
+  expect(registration).toEqual({ email: "new@example.com", firstName: "New", lastName: "Traveler", password: "Chosen-Secret-1" });
+  expect(screen.getByLabelText("Username")).toHaveValue("new@example.com");
+});
+
+it("sets a password from a one-time link and checks the repeat", async () => {
+  const user = userEvent.setup();
+  let setup: unknown;
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
+    if (String(input) === "/api/password-setup") {
+      setup = JSON.parse(String(options?.body));
+      return new Response(null, { status: 204 });
+    }
+    throw new Error(`Unexpected request: ${String(input)}`);
+  }));
+  window.location.hash = "#/set-password?token=abc123";
+
+  render(<App />);
+  await user.type(screen.getByLabelText("New password"), "Their-Own-Secret");
+  await user.type(screen.getByLabelText("Repeat password"), "Something-Else-1");
+  await user.click(screen.getByRole("button", { name: "Set password" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("The passwords do not match.");
+  expect(setup).toBeUndefined();
+
+  await user.clear(screen.getByLabelText("Repeat password"));
+  await user.type(screen.getByLabelText("Repeat password"), "Their-Own-Secret");
+  await user.click(screen.getByRole("button", { name: "Set password" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("Password set.");
+  expect(setup).toEqual({ token: "abc123", password: "Their-Own-Secret" });
 });

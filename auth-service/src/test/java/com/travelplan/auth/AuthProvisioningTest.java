@@ -87,6 +87,43 @@ class AuthProvisioningTest {
         assertThat(login(newUsername, PASSWORD).statusCode()).isEqualTo(401);
     }
 
+    @Test void settingAPasswordEndsOldSessionsAndReplacesTheOldPassword() throws Exception {
+        UUID id = UUID.randomUUID();
+        String username = "setup-" + id + "@example.com";
+        provision(id, username, "TRAVELER");
+        String oldToken = accessToken(login(username, PASSWORD));
+
+        HttpResponse<String> set = post("/internal/identities/" + id + "/password", "{\"password\":\"Brand-New-Secret\"}",
+                Map.of("X-Internal-Service-Token", "test-internal"));
+        assertThat(set.statusCode()).isEqualTo(204);
+        assertThat(tokens.verify(oldToken)).isEmpty();
+        // New password first: a failed attempt would throttle this username for a few seconds.
+        assertThat(login(username, "Brand-New-Secret").statusCode()).isEqualTo(200);
+        assertThat(login(username, PASSWORD).statusCode()).isEqualTo(401);
+    }
+
+    @Test void settingAPasswordNeedsTheServiceTokenAKnownIdentityAndALongPassword() throws Exception {
+        UUID id = UUID.randomUUID();
+        provision(id, "rules-" + id + "@example.com", "TRAVELER");
+        String path = "/internal/identities/" + id + "/password";
+        assertThat(post(path, "{\"password\":\"Brand-New-Secret\"}", Map.of("X-Internal-Service-Token", "wrong")).statusCode()).isEqualTo(403);
+        assertThat(post(path, "{\"password\":\"short\"}", Map.of("X-Internal-Service-Token", "test-internal")).statusCode()).isEqualTo(400);
+        assertThat(post("/internal/identities/" + UUID.randomUUID() + "/password", "{\"password\":\"Brand-New-Secret\"}",
+                Map.of("X-Internal-Service-Token", "test-internal")).statusCode()).isEqualTo(404);
+    }
+
+    @Test void passwordsLongerThan72BytesAreRejectedNotCrashed() throws Exception {
+        String tooLong = "é".repeat(37); // 37 characters, 74 bytes
+        UUID id = UUID.randomUUID();
+        String body = "{\"userId\":\"" + id + "\",\"username\":\"long-" + id + "@example.com\",\"password\":\"" + tooLong + "\",\"role\":\"TRAVELER\"}";
+        assertThat(post("/internal/identities", body, Map.of("X-Internal-Service-Token", "test-internal")).statusCode()).isEqualTo(400);
+
+        provision(id, "long-" + id + "@example.com", "TRAVELER");
+        assertThat(post("/internal/identities/" + id + "/password", "{\"password\":\"" + tooLong + "\"}",
+                Map.of("X-Internal-Service-Token", "test-internal")).statusCode()).isEqualTo(400);
+        assertThat(login("long-" + id + "@example.com", "x".repeat(100)).statusCode()).isEqualTo(401);
+    }
+
     @Test void loginSetsSecureCookiesAndKeepsTheRefreshTokenOutOfTheBody() throws Exception {
         HttpResponse<String> response = loginAs("TRAVELER");
         List<String> cookies = response.headers().allValues("Set-Cookie");

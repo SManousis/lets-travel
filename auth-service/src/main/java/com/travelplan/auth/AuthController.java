@@ -1,6 +1,7 @@
 package com.travelplan.auth;
 
 import com.travelplan.auth.security.IdentitySessionCoordinator;
+import com.travelplan.auth.security.PasswordRules;
 import com.travelplan.auth.security.ProvisionedIdentityStore;
 import com.travelplan.auth.security.TokenService;
 import com.travelplan.common.security.AccessToken;
@@ -67,9 +68,10 @@ public class AuthController {
         }
         return coordinator.execute(() -> {
             ProvisionedIdentityStore.Identity identity = identities.findByUsernameForUpdate(request.username());
-            boolean usable = identity != null && identity.enabled();
+            boolean usable = identity != null && identity.enabled() && PasswordRules.fits(request.password());
             // Hash even for unknown users so response time does not reveal which usernames exist.
-            boolean matches = passwords.matches(request.password(), usable ? identity.passwordHash() : unknownUserHash);
+            boolean matches = usable && passwords.matches(request.password(), identity.passwordHash());
+            if (!usable) passwords.matches("", unknownUserHash);
             if (!usable || !matches) {
                 failedLogins.put(request.username(), Instant.now().plus(LOGIN_BACKOFF));
                 return error(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Invalid credentials");

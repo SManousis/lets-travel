@@ -91,5 +91,18 @@ public class ProvisionedIdentityStore {
         }
     }
 
+    public boolean updatePassword(UUID subject, String passwordHash) {
+        if (jdbc != null) {
+            return jdbc.update("UPDATE auth_identities SET password_hash=? WHERE subject=?", passwordHash, subject) == 1;
+        }
+        synchronized (memory) {
+            Identity previous = memory.values().stream().filter(identity -> identity.subject().equals(subject))
+                    .findFirst().orElse(null);
+            if (previous == null) return false;
+            memory.put(previous.username(), new Identity(subject, previous.username(), passwordHash, previous.role(), previous.enabled()));
+            return true;
+        }
+    }
+
     public record Identity(UUID subject, String username, String passwordHash, Role role, boolean enabled) {}
 }

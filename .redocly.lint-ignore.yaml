@@ -1,0 +1,7 @@
+# This file instructs Redocly's linter to ignore the rules contained for specific parts of your API.
+# See https://redocly.com/docs/cli/ for more information.
+docs/api/users.yaml:
+  # /api/users/operations/{operationId} and /api/users/{userId}/password-setup both match
+  # /api/users/operations/password-setup in theory; user IDs are UUIDs, so they never collide.
+  no-ambiguous-paths:
+    - '#/paths/~1api~1users~1operations~1{operationId}'

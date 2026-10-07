@@ -42,7 +42,7 @@ it("reuses a user creation key after failure and rotates it when the form change
         lastName: body.lastName, role: body.role as User["role"], status: "ACTIVE", createdAt,
       };
       users.push(created);
-      return json(created);
+      return json({ ...created, passwordSetup: { token: "setup-token", expiresAt: "2026-10-10T00:00:00Z" } });
     }
     throw new Error(`Unexpected request: ${path}`);
   }));
@@ -68,7 +68,8 @@ it("reuses a user creation key after failure and rotates it when the form change
   await waitFor(() => expect(form.getByRole("button", { name: "Create user" })).toBeEnabled());
 
   await user.click(form.getByRole("button", { name: "Create user" }));
-  await screen.findByText(/User created\. Arrange their initial credentials/);
+  await screen.findByText(/User created\. Send them this one-time link/);
+  expect(screen.getByLabelText(/Password setup link/)).toHaveValue(`${window.location.origin}/#/set-password?token=setup-token`);
   expect(posts).toHaveLength(3);
   expect(posts[1].key).not.toBe(posts[0].key);
   expect(posts[2].key).toBe(posts[1].key);

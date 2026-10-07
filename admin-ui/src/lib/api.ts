@@ -44,7 +44,7 @@ export async function apiResult<T>(context: ApiContext, path: string, options: A
     try { payload = await response.json(); } catch { /* Some gateway errors have no JSON body. */ }
     const code = payload.code ?? `HTTP_${response.status}`;
     const fieldDetails = payload.fieldErrors ? ` ${Object.values(payload.fieldErrors).join(" ")}` : "";
-    const message = response.status === 403 ? "Administrator access is required."
+    const message = response.status === 403 ? "Your role does not allow this action."
       : response.status === 503 ? "A service is unavailable. Try again."
         : payload.message ? `${payload.message} (${code}).${fieldDetails}`
           : `Request failed (${code}).`;
@@ -75,7 +75,7 @@ export async function login(username: string, password: string): Promise<{ acces
     const message = response.status === 429 ? "Too many attempts. Try again later."
       : response.status === 503 ? "The authentication service is unavailable. Try again."
         : response.status === 403 ? "Administrator access is required."
-          : response.status === 401 ? "Invalid administrator credentials."
+          : response.status === 401 ? "Invalid email or password."
             : `Sign-in request failed (HTTP_${response.status}).`;
     throw new ApiError(response.status, "LOGIN_FAILED", message);
   }
@@ -97,4 +97,43 @@ export async function allPages<T>(context: ApiContext, path: string, pageParamet
     if (items.length >= result.total || result.items.length === 0) return items;
   }
   throw new ApiError(0, "TOO_MANY_RESULTS", "The collection is too large to load here.");
+}
+
+export type Me = {
+  userId: string; email: string | null; firstName: string | null; lastName: string | null;
+  role: "ADMIN" | "TRAVEL_MANAGER" | "TRAVELER"; status: string; memberSince: string | null;
+};
+
+/** The signed-in user as the server sees them; the dashboard never trusts a stored role. */
+export async function fetchMe(context: ApiContext): Promise<Me> {
+  return api<Me>(context, "/api/me");
+}
+
+async function publicPost(path: string, body: unknown): Promise<Response> {
+  try {
+    return await fetch(path, {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, "NETWORK_UNAVAILABLE", "The service could not be reached. Try again.");
+  }
+}
+
+export async function register(body: { email: string; firstName: string; lastName: string; password: string }): Promise<void> {
+  const response = await publicPost("/api/registrations", body);
+  if (response.ok) return;
+  const code = response.status === 409 ? "EMAIL_EXISTS" : `HTTP_${response.status}`;
+  const message = response.status === 409 ? "An account with this email already exists."
+    : response.status === 400 ? "Check the fields. Passwords need at least 10 characters."
+      : "Registration failed. Try again.";
+  throw new ApiError(response.status, code, message);
+}
+
+export async function completePasswordSetup(token: string, password: string): Promise<void> {
+  const response = await publicPost("/api/password-setup", { token, password });
+  if (response.ok) return;
+  const message = response.status === 400 ? "This link is invalid, expired or already used. Ask an administrator for a new one."
+    : "The password could not be set. Try again.";
+  throw new ApiError(response.status, "PASSWORD_SETUP_FAILED", message);
 }

@@ -1,5 +1,6 @@
 import * as React from "react";
-import { api, errorMessage, login, type ApiContext } from "./lib/api";
+import { api, errorMessage, fetchMe, login, type ApiContext, type Me } from "./lib/api";
+import { AccountHome, RegisterPage, SetPasswordPage, roleLabel } from "./features/account/AccountPages";
 import { UsersPanel } from "./features/users/UsersPanel";
 import { TravelsPanel } from "./features/travels/TravelsPanel";
 import { PaymentsPanel } from "./features/payments/PaymentsPanel";
@@ -40,11 +41,21 @@ function App() {
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [me, setMe] = React.useState<Me | null>(null);
+  const [notice, setNotice] = React.useState("");
+  const [route, setRoute] = React.useState(() => window.location.hash);
+
+  React.useEffect(() => {
+    const follow = () => setRoute(window.location.hash);
+    window.addEventListener("hashchange", follow);
+    return () => window.removeEventListener("hashchange", follow);
+  }, []);
 
   const clearSession = React.useCallback(() => {
     sessionStorage.removeItem("travelPlanToken");
     sessionStorage.removeItem("travelPlanTokenExpiresAt");
     setSession(null);
+    setMe(null);
   }, []);
 
   React.useEffect(() => {
@@ -58,6 +69,20 @@ function App() {
   const context = React.useMemo<ApiContext | null>(() => session
     ? { token: session.token, onUnauthorized: clearSession }
     : null, [session, clearSession]);
+
+  React.useEffect(() => {
+    if (!context || me) return;
+    let current = true;
+    fetchMe(context).then(found => { if (current) setMe(found); })
+      .catch(caught => { if (current) setError(errorMessage(caught)); });
+    return () => { current = false; };
+  }, [context, me]);
+
+  function leavePublicPage(message: string) {
+    setNotice(message);
+    window.location.hash = "#/";
+    setRoute("#/");
+  }
 
   async function signIn(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
@@ -85,18 +110,30 @@ function App() {
     setVisited(current => current.includes(next) ? current : [...current, next]);
   }
 
+  const setupToken = route.startsWith("#/set-password") ? new URLSearchParams(route.split("?")[1] ?? "").get("token") : null;
+  if (!context && setupToken) return <main className="login-shell">
+    <SetPasswordPage token={setupToken} onDone={() => leavePublicPage("Password set. You can sign in now.")} />
+  </main>;
+  if (!context && route === "#/register") return <main className="login-shell">
+    <RegisterPage onDone={email => { setUsername(email); leavePublicPage("Account created. Sign in with your new password."); }} />
+  </main>;
+
   if (!context) return <main className="login-shell">
     <form className="login-card" onSubmit={signIn}>
       <span className="brand-mark"><CompassMark /></span>
-      <p className="eyebrow">Travel Plan Admin</p>
+      <p className="eyebrow">Travel Plan</p>
       <h1>Sign in</h1>
-      <p className="login-intro">Use your administrator account to manage travel operations.</p>
+      <p className="login-intro">Sign in with your email and password.</p>
+      {notice && <p className="message success" role="status">{notice}</p>}
       <label>Username<input required autoComplete="username" value={username} onChange={event => setUsername(event.target.value)} /></label>
       <label>Password<input required type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} /></label>
       {error && <p className="message error" role="alert">{error}</p>}
       <button className="primary" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+      <a href="#/register">Create an account</a>
     </form>
   </main>;
+
+  if (!me) return <main className="login-shell"><p role="status">{error || "Loading your account…"}</p></main>;
 
   return <div className="app-shell">
     <header className="site-header">
@@ -104,10 +141,10 @@ function App() {
         <span className="brand-mark"><CompassMark /></span>
         <span>Travel Plan Admin</span>
       </a>
-      <div className="header-actions"><span className="phase-label">Admin workspace</span>
+      <div className="header-actions"><span className="phase-label">{roleLabel(me.role)}</span>
         <button type="button" onClick={() => void signOut()} disabled={busy}>Sign out</button></div>
     </header>
-    <main id="main-content">
+    {me.role !== "ADMIN" ? <main id="main-content"><AccountHome me={me} /></main> : <main id="main-content">
       <div className="workspace-intro"><p className="eyebrow">Operations</p><h1>Plan and manage every journey.</h1>
         <p>Choose an area to work with live records from the administration services.</p></div>
       <nav aria-label="Admin sections" className="section-nav">
@@ -117,7 +154,7 @@ function App() {
       {visited.includes("users") && <div hidden={section !== "users"}><UsersPanel context={context} active={section === "users"} /></div>}
       {visited.includes("travels") && <div hidden={section !== "travels"}><TravelsPanel context={context} active={section === "travels"} /></div>}
       {visited.includes("payments") && <div hidden={section !== "payments"}><PaymentsPanel context={context} active={section === "payments"} /></div>}
-    </main>
+    </main>}
     <footer><span>Travel Plan</span><span>Operations administration</span></footer>
   </div>;
 }

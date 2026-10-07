@@ -149,3 +149,12 @@ footer { display: flex; justify-content: space-between; gap: 15px; padding: 30px
   footer span { display: block; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* Account pages (sign-up, password setup, non-admin home) */
+.login-card a { color: var(--green); font-size: .9rem; justify-self: start; }
+.field-hint { margin: -10px 0 0; color: var(--muted); font-size: .82rem; }
+.setup-link { display: grid; gap: 6px; margin-bottom: 13px; font-size: .88rem; }
+.setup-link input { font-family: ui-monospace, monospace; font-size: .8rem; }
+.account-details { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0 0 16px; }
+.account-details dt { color: var(--muted); }
+.account-details dd { margin: 0; overflow-wrap: anywhere; }

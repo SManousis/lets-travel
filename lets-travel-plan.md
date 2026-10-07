@@ -124,8 +124,8 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 - [x] Include immutable user ID, role, issuer, audience, issued-at, expiry, and session/revocation identity in signed tokens.
 - [x] Enforce the role hierarchy: Admin includes manager/traveler capabilities; manager includes traveler capabilities; traveler has no management capability.
 - [ ] Enforce resource ownership in receiving services, not only by hiding UI controls or filtering at the gateway.
-- [ ] Add a safe `/api/me` endpoint so the UI can load the authenticated user's profile and role without trusting browser state.
-- [ ] Support creation, activation, disabling, role changes, and deletion for manager/traveler identities while preserving last-admin protection.
+- [x] Add a safe `/api/me` endpoint so the UI can load the authenticated user's profile and role without trusting browser state.
+- [x] Support creation, activation, disabling, role changes, and deletion for manager/traveler identities while preserving last-admin protection.
 - [x] Revoke active sessions immediately when an identity is disabled, deleted, or moved to a less privileged role.
 - [x] Reject stale, tampered, expired, revoked, wrong-issuer, wrong-audience, and unsupported-role tokens.
 - [ ] Add an authorization matrix test covering every new endpoint for unauthenticated, wrong-role, right-role, owner, and non-owner access.
