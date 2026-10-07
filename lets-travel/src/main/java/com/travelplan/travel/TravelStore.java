@@ -1,6 +1,8 @@
 package com.travelplan.travel;
 
 import com.travelplan.travel.TravelDomain.*;
+import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
@@ -13,14 +15,24 @@ import org.springframework.stereotype.Service;
 @Service
 public class TravelStore {
     private final Neo4jTravelRepository graph;
+    private final Clock clock;
+    private final TravelPolicy policy;
     private final Map<UUID, Destination> destinations = new ConcurrentHashMap<>();
     private final Map<UUID, Travel> travels = new ConcurrentHashMap<>();
     private final Set<UUID> removedTravelerIds = ConcurrentHashMap.newKeySet();
 
-    public TravelStore() { graph = null; }
+    public TravelStore() { this(Clock.systemUTC()); }
+
+    TravelStore(Clock clock) {
+        this.graph = null;
+        this.clock = clock;
+        this.policy = new TravelPolicy(clock);
+    }
 
     @Autowired
     public TravelStore(ObjectProvider<Driver> provider) {
+        this.clock = Clock.systemUTC();
+        this.policy = new TravelPolicy(clock);
         Driver driver = provider.getIfAvailable();
         graph = driver == null ? null : new Neo4jTravelRepository(driver);
     }
@@ -70,6 +82,22 @@ public class TravelStore {
                 .sorted(Comparator.comparing(Travel::createdAt).thenComparing(Travel::id)).toList();
     }
 
+    public List<Travel> travelsForManager(UUID managerId) {
+        if (graph != null) return graph.list(managerId, false);
+        return travels.values().stream().filter(travel -> managerId.equals(travel.managerId()))
+                .sorted(Comparator.comparing(Travel::createdAt).thenComparing(Travel::id)).toList();
+    }
+
+    public List<Travel> bookableTravels() {
+        List<Travel> candidates = graph != null ? graph.list(null, true) : travels.values().stream().toList();
+        return candidates.stream().filter(policy::bookable)
+                .sorted(Comparator.comparing(Travel::createdAt).thenComparing(Travel::id)).toList();
+    }
+
+    public boolean bookable(Travel travel) { return policy.bookable(travel); }
+
+    public int remainingCapacity(Travel travel) { return policy.remainingCapacity(travel); }
+
     public Travel travel(UUID id) {
         if (graph != null) return graph.travel(id);
         Travel result = travels.get(id);
@@ -87,12 +115,65 @@ public class TravelStore {
         return result;
     }
 
+    public Travel create(UUID managerId, String name, String description, LocalDate start, LocalDate end,
+                         int capacity, BigDecimal price, String currency, List<Stop> stops,
+                         List<Activity> activities, List<Accommodation> stays, List<Transport> transports) {
+        Instant now = clock.instant();
+        Travel result = new Travel(UUID.randomUUID(), managerId, name, description, start, end,
+                safeDuration(start, end), capacity, price, currency, Status.DRAFT, 1, orderedStops(stops),
+                copy(activities), copy(stays), copy(transports), Set.of(), now, now);
+        validateDestinations(result.stops());
+        policy.validateDraft(result);
+        if (graph != null) return graph.save(result);
+        travels.put(result.id(), result);
+        return result;
+    }
+
     public synchronized Travel update(UUID id, String name, LocalDate start, LocalDate end, List<Stop> stops,
                          List<Activity> activities, List<Accommodation> stays, List<Transport> transports) {
         Travel old = travel(id);
         validate(start, end, stops, activities, stays, transports);
         Travel result = new Travel(id, name, start, end, duration(start, end), orderedStops(stops),
                 List.copyOf(activities), List.copyOf(stays), List.copyOf(transports), old.travelerIds(), old.createdAt());
+        if (graph != null) return graph.update(result);
+        travels.put(id, result);
+        return result;
+    }
+
+    public synchronized Travel update(UUID id, String name, String description, LocalDate start, LocalDate end,
+                                      int capacity, BigDecimal price, String currency, List<Stop> stops,
+                                      List<Activity> activities, List<Accommodation> stays,
+                                      List<Transport> transports) {
+        Travel old = travel(id);
+        if (old.status() == Status.CANCELLED) throw new Conflict("TRAVEL_NOT_EDITABLE");
+        if (capacity < old.travelerIds().size()) throw new Conflict("CAPACITY_BELOW_PARTICIPANTS");
+        if (!old.travelerIds().isEmpty() && start != null && start.isBefore(old.startDate()))
+            throw new Conflict("TRAVEL_NOT_EDITABLE");
+        Travel result = new Travel(id, old.managerId(), name, description, start, end, safeDuration(start, end),
+                capacity, price, currency, old.status(), old.version() + 1, orderedStops(stops), copy(activities),
+                copy(stays), copy(transports), old.travelerIds(), old.createdAt(), clock.instant());
+        validateDestinations(result.stops());
+        policy.validateDraft(result);
+        if (graph != null) return graph.update(result);
+        travels.put(id, result);
+        return result;
+    }
+
+    public synchronized Travel publish(UUID id) {
+        Travel old = travel(id);
+        if (old.status() == Status.PUBLISHED) return old;
+        policy.validateForPublication(old);
+        Travel result = withLifecycle(old, Status.PUBLISHED);
+        if (graph != null) return graph.update(result);
+        travels.put(id, result);
+        return result;
+    }
+
+    public synchronized Travel unpublish(UUID id) {
+        Travel old = travel(id);
+        if (old.status() == Status.UNPUBLISHED || old.status() == Status.DRAFT) return old;
+        if (old.status() == Status.CANCELLED) throw new Conflict("TRAVEL_NOT_EDITABLE");
+        Travel result = withLifecycle(old, Status.UNPUBLISHED);
         if (graph != null) return graph.update(result);
         travels.put(id, result);
         return result;
@@ -129,14 +210,22 @@ public class TravelStore {
     }
 
     public void delete(UUID id) {
+        Travel current = travel(id);
+        if (!current.travelerIds().isEmpty()) throw new Conflict("TRAVEL_IN_USE");
         if (graph != null) { graph.delete(id); return; }
-        travel(id);
         travels.remove(id);
     }
 
     private static Travel withTravelers(Travel old, Set<UUID> ids) {
-        return new Travel(old.id(), old.name(), old.startDate(), old.endDate(), old.durationDays(), old.stops(),
-                old.activities(), old.accommodations(), old.transports(), Set.copyOf(ids), old.createdAt());
+        return new Travel(old.id(), old.managerId(), old.name(), old.description(), old.startDate(), old.endDate(),
+                old.durationDays(), old.capacity(), old.price(), old.currency(), old.status(), old.version(), old.stops(),
+                old.activities(), old.accommodations(), old.transports(), Set.copyOf(ids), old.createdAt(), old.updatedAt());
+    }
+
+    private Travel withLifecycle(Travel old, Status status) {
+        return new Travel(old.id(), old.managerId(), old.name(), old.description(), old.startDate(), old.endDate(),
+                old.durationDays(), old.capacity(), old.price(), old.currency(), status, old.version() + 1, old.stops(),
+                old.activities(), old.accommodations(), old.transports(), old.travelerIds(), old.createdAt(), clock.instant());
     }
 
     private static List<Stop> orderedStops(List<Stop> stops) {
@@ -144,6 +233,19 @@ public class TravelStore {
     }
 
     private static long duration(LocalDate start, LocalDate end) { return start.datesUntil(end.plusDays(1)).count(); }
+
+    private static long safeDuration(LocalDate start, LocalDate end) {
+        return start == null || end == null || end.isBefore(start) ? 0 : duration(start, end);
+    }
+
+    private void validateDestinations(List<Stop> stops) {
+        if (stops == null) return;
+        for (Stop stop : stops) if (stop.destinationId() != null) destination(stop.destinationId());
+    }
+
+    private static <T> List<T> copy(List<T> values) {
+        return values == null ? null : List.copyOf(values);
+    }
 
     private void validate(LocalDate start, LocalDate end, List<Stop> stops, List<Activity> activities,
                           List<Accommodation> stays, List<Transport> transports) {

@@ -6,11 +6,14 @@ import com.travelplan.travel.TravelDomain.Destination;
 import com.travelplan.travel.TravelDomain.Stop;
 import com.travelplan.travel.TravelDomain.Transport;
 import com.travelplan.travel.TravelDomain.Travel;
+import com.travelplan.travel.TravelDomain.Status;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -49,7 +52,18 @@ final class Neo4jTravelRepository {
                     + "SET d.normalizedName=toLower(trim(d.name)), d.normalizedCountry=toLower(trim(d.country))").consume();
             session.run("CREATE CONSTRAINT destination_name_country IF NOT EXISTS FOR (d:Destination) "
                     + "REQUIRE (d.normalizedName, d.normalizedCountry) IS UNIQUE").consume();
+            session.run("CREATE CONSTRAINT travel_event_id IF NOT EXISTS FOR (e:TravelEvent) "
+                    + "REQUIRE e.eventId IS UNIQUE").consume();
+            session.run("CREATE CONSTRAINT travel_event_version IF NOT EXISTS FOR (e:TravelEvent) "
+                    + "REQUIRE (e.aggregateId, e.aggregateVersion) IS UNIQUE").consume();
+            session.run("CREATE INDEX travel_manager IF NOT EXISTS FOR (t:Travel) ON (t.managerId)").consume();
+            quarantineOwnerlessTravels(session);
         }
+    }
+
+    private static void quarantineOwnerlessTravels(Session session) {
+        session.run("MATCH (t:Travel) WHERE t.managerId IS NULL "
+                + "REMOVE t:Travel SET t:LegacyTravelNeedsReview").consume();
     }
 
     List<Destination> destinations() {
@@ -137,6 +151,19 @@ final class Neo4jTravelRepository {
         }
     }
 
+    List<Travel> list(UUID managerId, boolean publishedOnly) {
+        try (Session session = driver.session()) {
+            Map<String, Object> parameters = new HashMap<>();
+            parameters.put("managerId", managerId == null ? null : managerId.toString());
+            parameters.put("publishedOnly", publishedOnly);
+            return session.executeRead(tx -> tx.run("MATCH (t:Travel) "
+                            + "WHERE ($managerId IS NULL OR t.managerId=$managerId) "
+                            + "AND (NOT $publishedOnly OR t.status='PUBLISHED')" + PROJECTION
+                            + " ORDER BY t.createdAt, t.id", parameters)
+                    .list(Neo4jTravelRepository::travel));
+        }
+    }
+
     Travel travel(UUID id) {
         try (Session session = driver.session()) {
             return session.executeRead(tx -> {
@@ -150,10 +177,10 @@ final class Neo4jTravelRepository {
     Travel save(Travel travel) {
         try (Session session = driver.session()) {
             return session.executeWrite(tx -> {
-                tx.run("CREATE (t:Travel {id:$id, name:$name, startDate:$start, endDate:$end, "
-                                + "durationDays:$duration, createdAt:$createdAt})",
+                tx.run("CREATE (t:Travel) SET t=$properties",
                         rootProperties(travel)).consume();
                 createItinerary(tx, travel);
+                createEvent(tx, "TRAVEL_CREATED", travel);
                 return travel;
             });
         }
@@ -162,16 +189,30 @@ final class Neo4jTravelRepository {
     Travel update(Travel travel) {
         try (Session session = driver.session()) {
             return session.executeWrite(tx -> {
-                if (!tx.run("MATCH (t:Travel {id:$id}) "
-                        + "SET t.lockVersion=coalesce(t.lockVersion,0)+1 RETURN t", Map.of("id", travel.id().toString())).hasNext())
+                var locked = tx.run("MATCH (t:Travel {id:$id}) "
+                        + "SET t.lockVersion=coalesce(t.lockVersion,0)+1 "
+                        + "WITH t OPTIONAL MATCH (t)-[:HAS_PARTICIPANT]->(p:Participation) "
+                        + "RETURN t, count(p) AS participantCount", Map.of("id", travel.id().toString()));
+                if (!locked.hasNext())
                     throw new TravelStore.NotFound();
+                Record lockedRecord = locked.single();
+                Node current = lockedRecord.get("t").asNode();
+                long participantCount = lockedRecord.get("participantCount").asLong();
+                if (travel.capacity() < participantCount) throw new TravelStore.Conflict("CAPACITY_BELOW_PARTICIPANTS");
+                Status oldStatus = Status.valueOf(current.get("status").asString(Status.DRAFT.name()));
+                long nextVersion = current.get("version").asLong(0) + 1;
+                Travel effective = new Travel(travel.id(), uuid(current, "managerId"), travel.name(), travel.description(),
+                        travel.startDate(), travel.endDate(), travel.durationDays(), travel.capacity(), travel.price(),
+                        travel.currency(), travel.status(), nextVersion, travel.stops(), travel.activities(),
+                        travel.accommodations(), travel.transports(), Set.of(), createdAt(current), travel.updatedAt());
                 tx.run("MATCH (t:Travel {id:$id})-[r:" + OWNED + "]->(owned) "
                         + "WHERE NOT owned:Participation DETACH DELETE owned", Map.of("id", travel.id().toString())).consume();
-                tx.run("MATCH (t:Travel {id:$id}) SET t.name=$name, t.startDate=$start, t.endDate=$end, "
-                                + "t.durationDays=$duration", rootProperties(travel)).consume();
-                createItinerary(tx, travel);
-                return travel(tx.run("MATCH (t:Travel {id:$id})" + PROJECTION,
+                tx.run("MATCH (t:Travel {id:$id}) SET t=$properties", rootProperties(effective)).consume();
+                createItinerary(tx, effective);
+                Travel result = travel(tx.run("MATCH (t:Travel {id:$id})" + PROJECTION,
                         Map.of("id", travel.id().toString())).single());
+                createEvent(tx, eventType(oldStatus, result.status()), result);
+                return result;
             });
         }
     }
@@ -229,12 +270,16 @@ final class Neo4jTravelRepository {
     void delete(UUID id) {
         try (Session session = driver.session()) {
             session.executeWrite(tx -> {
-                if (!tx.run("MATCH (t:Travel {id:$id}) "
-                        + "SET t.lockVersion=coalesce(t.lockVersion,0)+1 RETURN t", Map.of("id", id.toString())).hasNext())
+                var locked = tx.run("MATCH (t:Travel {id:$id}) "
+                        + "SET t.lockVersion=coalesce(t.lockVersion,0)+1" + PROJECTION, Map.of("id", id.toString()));
+                if (!locked.hasNext())
                     throw new TravelStore.NotFound();
+                Travel current = travel(locked.single());
+                Travel deleted = withVersion(current, current.version() + 1);
                 tx.run("MATCH (t:Travel {id:$id})-[:" + OWNED + "]->(owned) DETACH DELETE owned",
                         Map.of("id", id.toString())).consume();
                 tx.run("MATCH (t:Travel {id:$id}) DETACH DELETE t", Map.of("id", id.toString())).consume();
+                createEvent(tx, "TRAVEL_DELETED", deleted);
                 return null;
             });
         }
@@ -318,9 +363,13 @@ final class Neo4jTravelRepository {
                         node.get("departure").asString(), node.get("arrival").asString(), optionalDate(node, "date"))).toList();
         Set<UUID> travelers = new LinkedHashSet<>();
         record.get("participants").asList(value -> value.asNode()).forEach(node -> travelers.add(uuid(node, "travelerId")));
-        return new Travel(uuid(root, "id"), root.get("name").asString(), LocalDate.parse(root.get("startDate").asString()),
+        return new Travel(uuid(root, "id"), uuid(root, "managerId"), root.get("name").asString(),
+                root.get("description").asString(), LocalDate.parse(root.get("startDate").asString()),
                 LocalDate.parse(root.get("endDate").asString()), root.get("durationDays").asLong(),
-                stops, activities, stays, transports, travelers, createdAt(root));
+                root.get("capacity").asInt(), new BigDecimal(root.get("price").asString()),
+                root.get("currency").asString(), Status.valueOf(root.get("status").asString()),
+                root.get("version").asLong(), stops, activities, stays, transports, travelers, createdAt(root),
+                root.get("updatedAt").isNull() ? createdAt(root) : Instant.parse(root.get("updatedAt").asString()));
     }
 
     private static UUID destinationForStop(Node stop) {
@@ -345,8 +394,88 @@ final class Neo4jTravelRepository {
         return ex.code().contains("ConstraintValidationFailed");
     }
     private static Map<String, Object> rootProperties(Travel travel) {
-        return Map.of("id", travel.id().toString(), "name", travel.name(),
-                "start", date(travel.startDate()), "end", date(travel.endDate()),
-                "duration", travel.durationDays(), "createdAt", travel.createdAt().toString());
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("id", travel.id().toString());
+        properties.put("managerId", travel.managerId().toString());
+        properties.put("name", travel.name());
+        properties.put("description", travel.description());
+        properties.put("startDate", date(travel.startDate()));
+        properties.put("endDate", date(travel.endDate()));
+        properties.put("durationDays", travel.durationDays());
+        properties.put("capacity", travel.capacity());
+        properties.put("price", travel.price().toPlainString());
+        properties.put("currency", travel.currency());
+        properties.put("status", travel.status().name());
+        properties.put("version", travel.version());
+        properties.put("createdAt", travel.createdAt().toString());
+        properties.put("updatedAt", travel.updatedAt().toString());
+        return Map.of("id", travel.id().toString(), "properties", properties);
+    }
+
+    private static String eventType(Status oldStatus, Status newStatus) {
+        if (oldStatus != newStatus && newStatus == Status.PUBLISHED) return "TRAVEL_PUBLISHED";
+        if (oldStatus != newStatus && newStatus == Status.UNPUBLISHED) return "TRAVEL_UNPUBLISHED";
+        return "TRAVEL_UPDATED";
+    }
+
+    private static Travel withVersion(Travel travel, long version) {
+        return new Travel(travel.id(), travel.managerId(), travel.name(), travel.description(), travel.startDate(),
+                travel.endDate(), travel.durationDays(), travel.capacity(), travel.price(), travel.currency(),
+                travel.status(), version, travel.stops(), travel.activities(), travel.accommodations(), travel.transports(),
+                travel.travelerIds(), travel.createdAt(), travel.updatedAt());
+    }
+
+    private static void createEvent(TransactionContext tx, String eventType, Travel travel) {
+        Map<String, Object> values = new HashMap<>();
+        values.put("eventId", UUID.randomUUID().toString());
+        values.put("eventType", eventType);
+        values.put("aggregateId", travel.id().toString());
+        values.put("aggregateVersion", travel.version());
+        values.put("occurredAt", Instant.now().toString());
+        values.put("traceId", null);
+        values.put("payload", payload(travel));
+        tx.run("CREATE (e:TravelEvent) SET e=$event", Map.of("event", values)).consume();
+    }
+
+    private static String payload(Travel travel) {
+        String destinations = travel.stops().stream().sorted(Comparator.comparingInt(Stop::position))
+                .map(stop -> quote(stop.destinationId().toString())).reduce((left, right) -> left + "," + right).orElse("");
+        return "{" +
+                "\"schemaVersion\":1," +
+                "\"id\":" + quote(travel.id().toString()) + "," +
+                "\"managerId\":" + quote(travel.managerId().toString()) + "," +
+                "\"name\":" + quote(travel.name()) + "," +
+                "\"description\":" + quote(travel.description()) + "," +
+                "\"startDate\":" + quote(date(travel.startDate())) + "," +
+                "\"endDate\":" + quote(date(travel.endDate())) + "," +
+                "\"capacity\":" + travel.capacity() + "," +
+                "\"remainingCapacity\":" + Math.max(0, travel.capacity() - travel.travelerIds().size()) + "," +
+                "\"price\":" + quote(travel.price().toPlainString()) + "," +
+                "\"currency\":" + quote(travel.currency()) + "," +
+                "\"status\":" + quote(travel.status().name()) + "," +
+                "\"version\":" + travel.version() + "," +
+                "\"destinationIds\":[" + destinations + "]," +
+                "\"updatedAt\":" + quote(travel.updatedAt().toString()) + "}";
+    }
+
+    private static String quote(String value) {
+        if (value == null) return "null";
+        StringBuilder escaped = new StringBuilder(value.length() + 2).append('"');
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            switch (character) {
+                case '"', '\\' -> escaped.append('\\').append(character);
+                case '\b' -> escaped.append("\\b");
+                case '\f' -> escaped.append("\\f");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (character < 0x20) escaped.append(String.format("\\u%04x", (int) character));
+                    else escaped.append(character);
+                }
+            }
+        }
+        return escaped.append('"').toString();
     }
 }

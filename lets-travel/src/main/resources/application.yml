@@ -10,6 +10,9 @@ neo4j:
   password: ${NEO4J_PASSWORD:change-me-neo4j}
 auth:
   service-url: ${AUTH_SERVICE_URL:http://127.0.0.1:8081}
+services:
+  users:
+    url: ${USER_SERVICE_URL:http://127.0.0.1:8082}
 security:
   token-secret: ${AUTH_TOKEN_SECRET:replace-with-at-least-32-random-characters}
   internal-service-token: ${AUTH_INTERNAL_SERVICE_TOKEN:change-me-internal}
