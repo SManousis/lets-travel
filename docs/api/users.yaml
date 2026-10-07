@@ -289,6 +289,9 @@ paths:
   "/api/travelers":
     get:
       operationId: listTravelers
+      x-required-role: TRAVELER
+      x-ownership: 'Callers see and change only their own traveler profiles (admins: all);
+        another user''s profile returns 404, and lists are limited to the caller''s own.'
       summary: List traveler records
       responses:
         '200':
@@ -322,6 +325,9 @@ paths:
         and failed records.
     post:
       operationId: createTraveler
+      x-required-role: TRAVELER
+      x-ownership: 'Callers see and change only their own traveler profiles (admins: all);
+        another user''s profile returns 404, and lists are limited to the caller''s own.'
       summary: Create traveler
       responses:
         '201':
@@ -359,6 +365,9 @@ paths:
   "/api/travelers/{travelerId}":
     get:
       operationId: getTraveler
+      x-required-role: TRAVELER
+      x-ownership: 'Callers see and change only their own traveler profiles (admins: all);
+        another user''s profile returns 404, and lists are limited to the caller''s own.'
       summary: Read traveler
       responses:
         '200':
@@ -388,6 +397,9 @@ paths:
           format: uuid
     patch:
       operationId: updateTraveler
+      x-required-role: TRAVELER
+      x-ownership: 'Callers see and change only their own traveler profiles (admins: all);
+        another user''s profile returns 404, and lists are limited to the caller''s own.'
       summary: Update traveler
       responses:
         '200':
@@ -423,6 +435,9 @@ paths:
           format: uuid
     delete:
       operationId: deleteTraveler
+      x-required-role: TRAVELER
+      x-ownership: 'Callers see and change only their own traveler profiles (admins: all);
+        another user''s profile returns 404, and lists are limited to the caller''s own.'
       summary: Delete traveler
       responses:
         '202':

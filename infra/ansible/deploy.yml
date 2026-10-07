@@ -218,7 +218,9 @@
         pull: always
         build: never
         wait: true
-        wait_timeout: 300
+        # A cold start of every container on a small host can take several minutes; services
+        # that lose a startup race restart on their own (restart: unless-stopped).
+        wait_timeout: 600
 
     - name: Wait for HTTPS dashboard readiness
       ansible.builtin.uri:

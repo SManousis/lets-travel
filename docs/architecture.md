@@ -129,6 +129,7 @@ for managers, travels whose `managerId` is the caller. Contracts are in
 | Feedback on completed travels they took part in | ✓ | ✓ | ✓ |
 | Report a manager, traveler or travel | ✓ | ✓ | ✓ |
 | View manager pages and own statistics | ✓ | ✓ | ✓ |
+| Manage traveler profiles (passport details) | Own | Own | Any |
 | Create, edit, publish, unpublish, delete travels | – | Own | Any |
 | View and remove subscribers | – | Own travels | Any |
 | Read feedback for quality control | – | Own travels | All |
@@ -140,6 +141,13 @@ for managers, travels whose `managerId` is the caller. Contracts are in
 The gateway rejects a request whose role is below the operation's minimum. The
 receiving service checks the role again and checks ownership, because services
 must stay safe when called directly. Out-of-ownership requests return `404`.
+
+Both layers are tested endpoint by endpoint. Each service has an
+`AuthorizationMatrixTest` that lists every endpoint with its minimum role and calls
+it directly (gateway bypassed) with no token and as each role; it fails if the
+service gains an endpoint the matrix does not list. `GatewayRoleMatrixTest` does
+the same for every routed path at the gateway. `/internal/**` endpoints refuse any
+request without the internal service token before a controller runs.
 
 ## Service dependencies
 

@@ -34,8 +34,9 @@ public class TokenSecurityAutoConfiguration {
         }
 
         @Bean
-        TokenAuthenticationFilter tokenAuthenticationFilter(AccessTokenCodec codec, SessionChecker sessions) {
-            return new TokenAuthenticationFilter(codec, sessions);
+        TokenAuthenticationFilter tokenAuthenticationFilter(AccessTokenCodec codec, SessionChecker sessions,
+                @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
+            return new TokenAuthenticationFilter(codec, sessions, serviceToken);
         }
 
         /** The filter runs inside the security chain only, not a second time as a plain servlet filter. */

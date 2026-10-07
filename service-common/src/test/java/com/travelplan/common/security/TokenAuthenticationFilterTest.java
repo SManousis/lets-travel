@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TokenAuthenticationFilterTest {
     private final AccessTokenCodec codec = new AccessTokenCodec("a-test-secret-that-is-at-least-32-bytes-long", Duration.ofMinutes(15));
     private final AtomicReference<SessionChecker.Result> session = new AtomicReference<>(SessionChecker.Result.ACTIVE);
-    private final TokenAuthenticationFilter filter = new TokenAuthenticationFilter(codec, token -> session.get());
+    private final TokenAuthenticationFilter filter = new TokenAuthenticationFilter(codec, token -> session.get(), "internal-secret");
 
     @AfterEach void clearContext() {
         SecurityContextHolder.clearContext();
@@ -67,11 +67,27 @@ class TokenAuthenticationFilterTest {
         assertThat(response.getContentAsString()).contains("DEPENDENCY_UNAVAILABLE");
     }
 
-    @Test void ignoresNonApiPaths() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/internal/token-validation");
+    @Test void ignoresPathsOutsideApiAndInternal() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/actuator/health");
         request.addHeader("Authorization", "Bearer not-a-token");
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, new MockFilterChain());
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test void internalPathsNeedTheServiceTokenBeforeAnythingElseRuns() throws Exception {
+        for (String presented : new String[] {null, "wrong"}) {
+            MockHttpServletRequest request = new MockHttpServletRequest("POST", "/internal/travelers/cleanup");
+            if (presented != null) request.addHeader("X-Internal-Service-Token", presented);
+            request.addHeader("Authorization", bearer(UUID.randomUUID(), Role.ADMIN));
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(request, response, (req, res) -> { throw new AssertionError("must not reach the controller"); });
+            assertThat(response.getStatus()).isEqualTo(403);
+        }
+        MockHttpServletRequest trusted = new MockHttpServletRequest("POST", "/internal/travelers/cleanup");
+        trusted.addHeader("X-Internal-Service-Token", "internal-secret");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(trusted, response, new MockFilterChain());
         assertThat(response.getStatus()).isEqualTo(200);
     }
 

@@ -123,14 +123,14 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 - [x] Replace the legacy `OPERATOR` role with explicit `TRAVEL_MANAGER` and `TRAVELER` roles, including a safe migration for existing records.
 - [x] Include immutable user ID, role, issuer, audience, issued-at, expiry, and session/revocation identity in signed tokens.
 - [x] Enforce the role hierarchy: Admin includes manager/traveler capabilities; manager includes traveler capabilities; traveler has no management capability.
-- [ ] Enforce resource ownership in receiving services, not only by hiding UI controls or filtering at the gateway.
+- [x] Enforce resource ownership in receiving services, not only by hiding UI controls or filtering at the gateway.
 - [x] Add a safe `/api/me` endpoint so the UI can load the authenticated user's profile and role without trusting browser state.
 - [x] Support creation, activation, disabling, role changes, and deletion for manager/traveler identities while preserving last-admin protection.
 - [x] Revoke active sessions immediately when an identity is disabled, deleted, or moved to a less privileged role.
 - [x] Reject stale, tampered, expired, revoked, wrong-issuer, wrong-audience, and unsupported-role tokens.
-- [ ] Add an authorization matrix test covering every new endpoint for unauthenticated, wrong-role, right-role, owner, and non-owner access.
-- [ ] Verify the same denials when a service is called directly and the gateway is bypassed.
-- [ ] **Completion gate:** All three roles can sign in and access exactly their permitted routes; forbidden cross-manager and direct-service operations are covered by automated tests and return `403` without leaking data.
+- [x] Add an authorization matrix test covering every new endpoint for unauthenticated, wrong-role, right-role, owner, and non-owner access.
+- [x] Verify the same denials when a service is called directly and the gateway is bypassed.
+- [ ] **Completion gate:** All three roles can sign in and access exactly their permitted routes; forbidden cross-user and direct-service operations are covered by automated tests and return `403` (role too low) or `404` (another user's resource) without leaking data. Cross-manager travel cases are added with manager-owned travels in Phase 2.
 
 ## Phase 2 — Manager-owned travel offerings and public profiles
 

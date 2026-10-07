@@ -1,4 +1,7 @@
 package com.travelplan.users;
+import com.travelplan.common.security.AccessToken;
+import com.travelplan.common.security.Ownership;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.travelplan.common.security.Role;
 
 import jakarta.validation.Valid;
@@ -34,14 +37,21 @@ public class UserController {
     @DeleteMapping("/api/users/{id}") public ResponseEntity<Void> delete(@PathVariable UUID id) {
         return deletion.delete(id) ? ResponseEntity.noContent().build() : ResponseEntity.accepted().build();
     }
-    @GetMapping("/api/travelers") public Page<UserDomain.Traveler> travelers(@RequestParam(required=false) UUID userId,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size){return page(store.travelers(userId),page,size);}
-    @PostMapping("/api/travelers") public ResponseEntity<UserDomain.Traveler> createTraveler(@Valid @RequestBody TravelerCreate b){return ResponseEntity.status(HttpStatus.CREATED).body(store.createTraveler(b.userId(),b.passportNumber(),b.nationality()));}
-    @GetMapping("/api/travelers/{id}") public UserDomain.Traveler traveler(@PathVariable UUID id){return store.traveler(id);}
-    @PatchMapping("/api/travelers/{id}") public UserDomain.Traveler updateTraveler(@PathVariable UUID id,@Valid @RequestBody TravelerPatch b){return store.updateTraveler(id,b.passportNumber(),b.nationality());}
-    @DeleteMapping("/api/travelers/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) public void deleteTraveler(@PathVariable UUID id){
-        store.traveler(id);
+    // Traveler profiles belong to a user: each user manages their own, admins manage all.
+    // A profile the caller may not see is reported as missing (404), never as forbidden.
+    @GetMapping("/api/travelers") public Page<UserDomain.Traveler> travelers(@AuthenticationPrincipal AccessToken caller,@RequestParam(required=false) UUID userId,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size){return page(store.travelers(Ownership.listScope(caller,userId)),page,size);}
+    @PostMapping("/api/travelers") public ResponseEntity<UserDomain.Traveler> createTraveler(@AuthenticationPrincipal AccessToken caller,@Valid @RequestBody TravelerCreate b){if(!Ownership.canAccess(caller,b.userId()))throw new UserStore.NotFound();return ResponseEntity.status(HttpStatus.CREATED).body(store.createTraveler(b.userId(),b.passportNumber(),b.nationality()));}
+    @GetMapping("/api/travelers/{id}") public UserDomain.Traveler traveler(@AuthenticationPrincipal AccessToken caller,@PathVariable UUID id){return owned(caller,id);}
+    @PatchMapping("/api/travelers/{id}") public UserDomain.Traveler updateTraveler(@AuthenticationPrincipal AccessToken caller,@PathVariable UUID id,@Valid @RequestBody TravelerPatch b){owned(caller,id);return store.updateTraveler(id,b.passportNumber(),b.nationality());}
+    @DeleteMapping("/api/travelers/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) public void deleteTraveler(@AuthenticationPrincipal AccessToken caller,@PathVariable UUID id){
+        owned(caller,id);
         cleanup.cleanupTravelers(List.of(id));
         store.deleteTraveler(id);
+    }
+    private UserDomain.Traveler owned(AccessToken caller, UUID id) {
+        UserDomain.Traveler traveler = store.traveler(id);
+        if (!Ownership.canAccess(caller, traveler.userId())) throw new UserStore.NotFound();
+        return traveler;
     }
     @ExceptionHandler(UserStore.NotFound.class) ResponseEntity<Error> notFound(){return ResponseEntity.status(404).body(new Error("NOT_FOUND","Resource not found"));}
     @ExceptionHandler(UserStore.Conflict.class) ResponseEntity<Error> conflict(UserStore.Conflict e){return ResponseEntity.status(409).body(new Error(e.code,"Request conflicts with current state"));}
