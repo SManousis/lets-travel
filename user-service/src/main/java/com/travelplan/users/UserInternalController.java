@@ -1,7 +1,9 @@
 package com.travelplan.users;
 
+import com.travelplan.common.security.Role;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
@@ -35,6 +37,31 @@ final class UserInternalController {
             return ResponseEntity.notFound().build();
         }
     }
+
+    @GetMapping("/internal/managers/{id}")
+    ResponseEntity<ManagerSummary> manager(@PathVariable UUID id,
+            @RequestHeader(value = "X-Internal-Service-Token", required = false) String presented) {
+        if (!authorized(presented)) return ResponseEntity.status(403).build();
+        try {
+            UserDomain.User user = store.get(id);
+            if (user.role() != Role.TRAVEL_MANAGER || user.status() != UserDomain.Status.ACTIVE)
+                return ResponseEntity.status(409).build();
+            return ResponseEntity.ok(new ManagerSummary(user.id(), displayName(user), user.createdAt()));
+        } catch (UserStore.NotFound ex) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    private boolean authorized(String presented) {
+        return presented != null
+                && MessageDigest.isEqual(serviceToken, presented.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String displayName(UserDomain.User user) {
+        return (user.firstName() + " " + user.lastName()).trim().replaceAll("\\s+", " ");
+    }
+
+    record ManagerSummary(UUID managerId, String displayName, Instant memberSince) {}
 
     @ExceptionHandler(DataAccessException.class)
     ResponseEntity<Void> unavailable() { return ResponseEntity.status(503).build(); }
