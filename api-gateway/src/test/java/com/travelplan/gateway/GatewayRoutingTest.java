@@ -64,7 +64,16 @@ class GatewayRoutingTest {
             "GET, /api/destinations, travel",
             "GET, /api/managers/123, engagement",
             "GET, /api/managers/123/extra, engagement",
+            "POST, /api/subscriptions, engagement",
+            "POST, /api/subscriptions/123/cancellation, engagement",
+            "GET, /api/managed-travels/123/subscribers, engagement",
+            "POST, /api/managed-travels/123/subscribers/456/removal, engagement",
             "POST, /api/payment-methods, payments",
+            "POST, /api/subscription-payments, payments",
+            "GET, /api/subscription-payments/123, payments",
+            "GET, /api/payment-options, payments",
+            "POST, /api/payment-webhooks/stripe, payments",
+            "POST, /api/payment-webhooks/test, payments",
             "DELETE, /api/payment-gateways/123, payments"
     })
     void forwardsToDomainOwnerPreservingRequest(String method, String path, String owner) throws Exception {
@@ -130,7 +139,9 @@ class GatewayRoutingTest {
 
     @ParameterizedTest
     @CsvSource({"/api/unknown", "/api/users-extra", "/internal/cleanup", "/actuator/env", "/api/managers-extra",
-            "/internal/managers/123", "/internal/managers/123/travel-statistics"})
+            "/internal/managers/123", "/internal/managers/123/travel-statistics", "/api/subscriptions-extra",
+            "/internal/subscriptions/123/payment-outcome",
+            "/internal/subscriptions/123/refund", "/internal/subscriptions/123", "/api/payment-webhooks/paypal", "/internal/travels/123/reservations", "/internal/users/123/summary"})
     void doesNotRouteUnownedOrPrivatePaths(String path) throws Exception {
         var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .timeout(Duration.ofSeconds(30)).GET();
