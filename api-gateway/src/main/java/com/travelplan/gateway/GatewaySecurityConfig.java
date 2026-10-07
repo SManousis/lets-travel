@@ -34,13 +34,14 @@ public class GatewaySecurityConfig {
     /** Paths that need no token. */
     static final List<String> PUBLIC_PATHS = List.of("/api/auth/login", "/api/auth/refresh", "/api/registrations", "/api/password-setup");
 
-    /** Minimum role per path prefix, first match wins; other /api paths need any signed-in role. */
+    /** Minimum role per (optional method and) path prefix, first match wins; other /api paths need any signed-in role. */
     static final List<Rule> RULES = List.of(
             new Rule("/api/auth", Role.TRAVELER),
             new Rule("/api/users", Role.ADMIN),
             new Rule("/api/travelers", Role.TRAVELER),
             new Rule("/api/travels", Role.TRAVELER),
             new Rule("/api/managers", Role.TRAVELER),
+            new Rule("GET", "/api/destinations", Role.TRAVELER),
             new Rule("/api/destinations", Role.ADMIN),
             new Rule("/api/payment-methods", Role.ADMIN),
             new Rule("/api/payment-gateways", Role.ADMIN));
@@ -66,7 +67,7 @@ public class GatewaySecurityConfig {
             Optional<AccessToken> token = header != null && header.startsWith("Bearer ")
                     ? codec.verify(header.substring(7)) : Optional.empty();
             if (token.isEmpty()) return reject(exchange, HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Authentication required");
-            if (!token.get().role().includes(requiredRole(path))) {
+            if (!token.get().role().includes(requiredRole(exchange.getRequest().getMethod().name(), path))) {
                 return reject(exchange, HttpStatus.FORBIDDEN, "FORBIDDEN", "Your role does not allow this action");
             }
             return client.post().uri("/internal/token-validation")
@@ -93,8 +94,9 @@ public class GatewaySecurityConfig {
         };
     }
 
-    static Role requiredRole(String path) {
-        return RULES.stream().filter(rule -> path.equals(rule.prefix()) || path.startsWith(rule.prefix() + "/"))
+    static Role requiredRole(String method, String path) {
+        return RULES.stream().filter(rule -> rule.method() == null || rule.method().equals(method))
+                .filter(rule -> path.equals(rule.prefix()) || path.startsWith(rule.prefix() + "/"))
                 .map(Rule::minimum).findFirst().orElse(Role.TRAVELER);
     }
 
@@ -110,7 +112,10 @@ public class GatewaySecurityConfig {
         return response.writeWith(Mono.just(buffer));
     }
 
-    record Rule(String prefix, Role minimum) {}
+    /** A null method matches every HTTP method. */
+    record Rule(String method, String prefix, Role minimum) {
+        Rule(String prefix, Role minimum) { this(null, prefix, minimum); }
+    }
 
     private enum SessionState { ACTIVE, DENIED, UNAVAILABLE }
 }
