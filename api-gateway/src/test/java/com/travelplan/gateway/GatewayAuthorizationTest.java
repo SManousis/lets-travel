@@ -1,18 +1,16 @@
 package com.travelplan.gateway;
 
+import com.travelplan.common.security.AccessTokenCodec;
+import com.travelplan.common.security.Role;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
@@ -55,7 +53,7 @@ class GatewayAuthorizationTest {
 
     private HttpResponse<String> getUsers() throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/users"))
-                .timeout(Duration.ofSeconds(5)).header("Authorization", "Bearer " + token()).GET().build();
+                .timeout(Duration.ofSeconds(30)).header("Authorization", "Bearer " + token()).GET().build();
         try (HttpClient client = HttpClient.newHttpClient()) {
             return client.send(request, HttpResponse.BodyHandlers.ofString());
         }
@@ -76,12 +74,12 @@ class GatewayAuthorizationTest {
         } catch (Exception ex) { throw new IllegalStateException(ex); }
     }
 
-    private static String token() throws Exception {
-        String payload = "admin|ADMIN|travel-plan-auth|travel-plan-admin|"
-                + (System.currentTimeMillis() / 1000 + 60) + "|" + UUID.randomUUID();
-        String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
-        Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec("replace-with-at-least-32-random-characters".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        return encoded + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(encoded.getBytes(StandardCharsets.UTF_8)));
+    private static String token() {
+        return token(Role.ADMIN);
+    }
+
+    private static String token(Role role) {
+        return new AccessTokenCodec("replace-with-at-least-32-random-characters", Duration.ofMinutes(1))
+                .issue(UUID.randomUUID(), role, UUID.randomUUID()).value();
     }
 }

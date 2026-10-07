@@ -1,15 +1,26 @@
 package com.travelplan.users.security;
+
+import com.travelplan.common.security.ServiceSecurity;
+import com.travelplan.common.security.TokenAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+/**
+ * Inherited admin APIs stay ADMIN-only until Phase 2 opens them to other roles.
+ * /internal endpoints are not routed by the gateway and check the internal service token themselves.
+ */
 @Configuration
 public class SecurityConfig {
- @Bean SecurityFilterChain securityFilterChain(HttpSecurity http, AdminTokenFilter filter) throws Exception {
-  return http.csrf(c -> c.disable()).sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-    .authorizeHttpRequests(a -> a.requestMatchers("/actuator/**").permitAll().requestMatchers("/api/**").authenticated().anyRequest().permitAll())
-    .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class).build();
- }
+
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http, TokenAuthenticationFilter tokens) throws Exception {
+        return ServiceSecurity.apply(http, tokens)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/actuator/**", "/error", "/internal/**").permitAll()
+                        .requestMatchers("/api/**").hasRole("ADMIN")
+                        .anyRequest().denyAll())
+                .build();
+    }
 }

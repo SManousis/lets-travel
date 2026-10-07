@@ -1,4 +1,5 @@
 package com.travelplan.users;
+import com.travelplan.common.security.Role;
 
 import java.time.Instant;
 import java.sql.Timestamp;
@@ -43,7 +44,7 @@ public class UserStore {
         jdbc.query("select id,email,first_name,last_name,role,status,created_at from users", r -> {
             var user = new UserDomain.User((UUID) r.getObject("id"), r.getString("email"),
                     r.getString("first_name"), r.getString("last_name"),
-                    UserDomain.Role.valueOf(r.getString("role")), UserDomain.Status.valueOf(r.getString("status")),
+                    Role.valueOf(r.getString("role")), UserDomain.Status.valueOf(r.getString("status")),
                     r.getTimestamp("created_at").toInstant());
             users.put(user.id(), user);
         });
@@ -55,7 +56,7 @@ public class UserStore {
         });
     }
 
-    public UserDomain.User create(String email, String first, String last, UserDomain.Role role) {
+    public UserDomain.User create(String email, String first, String last, Role role) {
         if (users.values().stream().anyMatch(u -> u.email().equalsIgnoreCase(email))) throw new Conflict("EMAIL_EXISTS");
         UserDomain.User user = new UserDomain.User(UUID.randomUUID(), email.toLowerCase(Locale.ROOT), first, last, role, UserDomain.Status.ACTIVE, Instant.now());
         try { provisioning.provision(user.id(), user.email(), UUID.randomUUID().toString()+"-Initial9!", user.role().name()); } catch (RuntimeException ex) { throw new Conflict("AUTH_PROVISIONING_FAILED"); }
@@ -82,7 +83,7 @@ public class UserStore {
                         + "from users order by created_at,id",
                 (r, row) -> new UserDomain.User((UUID) r.getObject("id"), r.getString("email"),
                         r.getString("first_name"), r.getString("last_name"),
-                        UserDomain.Role.valueOf(r.getString("role")), UserDomain.Status.valueOf(r.getString("status")),
+                        Role.valueOf(r.getString("role")), UserDomain.Status.valueOf(r.getString("status")),
                         r.getTimestamp("created_at").toInstant()));
         return users.values().stream().sorted(Comparator.comparing(UserDomain.User::createdAt).thenComparing(UserDomain.User::id)).toList();
     }
@@ -91,7 +92,7 @@ public class UserStore {
             List<UserDomain.User> found = jdbc.query("select id,email,first_name,last_name,role,status,created_at from users where id=?",
                     (r, row) -> new UserDomain.User((UUID) r.getObject("id"), r.getString("email"),
                             r.getString("first_name"), r.getString("last_name"),
-                            UserDomain.Role.valueOf(r.getString("role")), UserDomain.Status.valueOf(r.getString("status")),
+                            Role.valueOf(r.getString("role")), UserDomain.Status.valueOf(r.getString("status")),
                             r.getTimestamp("created_at").toInstant()), id);
             if (found.isEmpty()) throw new NotFound();
             users.put(id, found.getFirst());
@@ -128,14 +129,14 @@ public class UserStore {
                 lockLifecycle();
                 UserDomain.User user = get(id);
                 if (deletionStage(id) == null) {
-                    if (user.role() == UserDomain.Role.ADMIN && user.status() == UserDomain.Status.ACTIVE
+                    if (user.role() == Role.ADMIN && user.status() == UserDomain.Status.ACTIVE
                             && activeAdminCount() <= 1) throw new Conflict("LAST_ADMIN");
                     jdbc.update("update users set deletion_stage='STARTED' where id=? and deletion_stage is null", id);
                 }
             });
         } else if (!deletionStages.containsKey(id)) {
             UserDomain.User user = get(id);
-            if (user.role() == UserDomain.Role.ADMIN && user.status() == UserDomain.Status.ACTIVE
+            if (user.role() == Role.ADMIN && user.status() == UserDomain.Status.ACTIVE
                     && activeAdminCount() <= 1) throw new Conflict("LAST_ADMIN");
             deletionStages.put(id, "STARTED");
         }
@@ -171,10 +172,10 @@ public class UserStore {
         if (jdbc != null) return jdbc.queryForObject(
                 "select count(*) from users where role='ADMIN' and status='ACTIVE' and deletion_stage is null",
                 Long.class);
-        return users.values().stream().filter(u -> u.role() == UserDomain.Role.ADMIN
+        return users.values().stream().filter(u -> u.role() == Role.ADMIN
                 && u.status() == UserDomain.Status.ACTIVE && !deletionStages.containsKey(u.id())).count();
     }
-    public synchronized UserDomain.User update(UUID id, String email, String first, String last, UserDomain.Role role, UserDomain.Status status) {
+    public synchronized UserDomain.User update(UUID id, String email, String first, String last, Role role, UserDomain.Status status) {
         if (jdbc != null) return transactions.execute(tx -> {
             lockLifecycle();
             List<UUID> locked = jdbc.query("select id from users where id=? for update",
@@ -186,13 +187,13 @@ public class UserStore {
     }
 
     private UserDomain.User updateLocked(UUID id, String email, String first, String last,
-                                          UserDomain.Role role, UserDomain.Status status) {
+                                          Role role, UserDomain.Status status) {
         UserDomain.User old = get(id);
         if (deletionStage(id) != null) throw new Conflict("USER_DELETION_IN_PROGRESS");
         if (email != null && users.values().stream().anyMatch(u -> !u.id().equals(id) && u.email().equalsIgnoreCase(email))) throw new Conflict("EMAIL_EXISTS");
         UserDomain.User next = new UserDomain.User(id, email == null ? old.email() : email.toLowerCase(Locale.ROOT), first == null ? old.firstName() : first, last == null ? old.lastName() : last, role == null ? old.role() : role, status == null ? old.status() : status, old.createdAt());
-        if (old.role() == UserDomain.Role.ADMIN && old.status() == UserDomain.Status.ACTIVE
-                && (next.role() != UserDomain.Role.ADMIN || next.status() != UserDomain.Status.ACTIVE)
+        if (old.role() == Role.ADMIN && old.status() == UserDomain.Status.ACTIVE
+                && (next.role() != Role.ADMIN || next.status() != UserDomain.Status.ACTIVE)
                 && activeAdminCount() <= 1)
             throw new Conflict("LAST_ADMIN");
         if (!old.email().equals(next.email()) || old.role() != next.role() || old.status() != next.status()) {

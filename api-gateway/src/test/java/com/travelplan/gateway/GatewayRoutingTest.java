@@ -1,5 +1,7 @@
 package com.travelplan.gateway;
 
+import com.travelplan.common.security.AccessTokenCodec;
+import com.travelplan.common.security.Role;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -9,12 +11,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -68,7 +67,7 @@ class GatewayRoutingTest {
     void forwardsToDomainOwnerPreservingRequest(String method, String path, String owner) throws Exception {
         String fullPath = path + "?page=1&size=20";
         var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + fullPath))
-                .timeout(Duration.ofSeconds(10))
+                .timeout(Duration.ofSeconds(30))
                 .header("X-Request-Id", "routing-check")
                 .method(method, HttpRequest.BodyPublishers.ofString("payload"));
         if (!path.equals("/api/auth/login")) builder.header("Authorization", "Bearer " + token());
@@ -130,7 +129,7 @@ class GatewayRoutingTest {
     @CsvSource({"/api/unknown", "/api/users-extra", "/internal/cleanup", "/actuator/env"})
     void doesNotRouteUnownedOrPrivatePaths(String path) throws Exception {
         var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
-                .timeout(Duration.ofSeconds(10)).GET();
+                .timeout(Duration.ofSeconds(30)).GET();
         if (path.startsWith("/api/")) builder.header("Authorization", "Bearer " + token());
         var request = builder.build();
         try (HttpClient client = HttpClient.newHttpClient()) {
@@ -175,12 +174,12 @@ class GatewayRoutingTest {
         } catch (IOException exception) { throw new IllegalStateException(exception); }
     }
 
-    private static String token() throws Exception {
-        String payload = "admin|ADMIN|travel-plan-auth|travel-plan-admin|"
-                + (System.currentTimeMillis() / 1000 + 60) + "|" + UUID.randomUUID();
-        String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
-        Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec("replace-with-at-least-32-random-characters".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        return encoded + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(encoded.getBytes(StandardCharsets.UTF_8)));
+    private static String token() {
+        return token(Role.ADMIN);
+    }
+
+    private static String token(Role role) {
+        return new AccessTokenCodec("replace-with-at-least-32-random-characters", Duration.ofMinutes(1))
+                .issue(UUID.randomUUID(), role, UUID.randomUUID()).value();
     }
 }

@@ -3,7 +3,7 @@ import { api, apiResult, errorMessage, newKey, type ApiContext, type Page } from
 import type { Traveler, User } from "../../lib/types";
 import { Empty, Message, PageControls } from "../../components/Shared";
 
-const emptyUser = { email: "", firstName: "", lastName: "", role: "OPERATOR" as User["role"] };
+const emptyUser = { email: "", firstName: "", lastName: "", role: "TRAVELER" as User["role"] };
 const emptyTraveler = { passportNumber: "", nationality: "" };
 
 export function UsersPanel({ context, active }: { context: ApiContext; active: boolean }) {
@@ -155,7 +155,7 @@ export function UsersPanel({ context, active }: { context: ApiContext; active: b
           <label>First name<input required value={newUser.firstName} onChange={event => { createAttempt.current = null; setNewUser({ ...newUser, firstName: event.target.value }); }} /></label>
           <label>Last name<input required value={newUser.lastName} onChange={event => { createAttempt.current = null; setNewUser({ ...newUser, lastName: event.target.value }); }} /></label>
           <label>Role<select value={newUser.role} onChange={event => { createAttempt.current = null; setNewUser({ ...newUser, role: event.target.value as User["role"] }); }}>
-            <option value="OPERATOR">Operator</option><option value="ADMIN">Administrator</option></select></label>
+            <option value="TRAVELER">Traveler</option><option value="TRAVEL_MANAGER">Travel manager</option><option value="ADMIN">Administrator</option></select></label>
           <button className="primary" disabled={userBusy}>{userBusy ? "Saving…" : "Create user"}</button>
         </form>
         <p className="field-hint">Initial credentials are managed through the operator process.</p>
@@ -173,7 +173,7 @@ export function UsersPanel({ context, active }: { context: ApiContext; active: b
           <label>First name<input required value={editUser.firstName} onChange={event => setEditUser({ ...editUser, firstName: event.target.value })} /></label>
           <label>Last name<input required value={editUser.lastName} onChange={event => setEditUser({ ...editUser, lastName: event.target.value })} /></label>
           <label>Role<select value={editUser.role} onChange={event => setEditUser({ ...editUser, role: event.target.value as User["role"] })}>
-            <option value="OPERATOR">Operator</option><option value="ADMIN">Administrator</option></select></label>
+            <option value="TRAVELER">Traveler</option><option value="TRAVEL_MANAGER">Travel manager</option><option value="ADMIN">Administrator</option></select></label>
           <label>Status<select value={editUser.status} onChange={event => setEditUser({ ...editUser, status: event.target.value as User["status"] })}>
             <option value="ACTIVE">Active</option><option value="DISABLED">Disabled</option><option value="PENDING">Pending</option><option value="FAILED">Failed</option></select></label>
           <button className="primary" disabled={userBusy}>{userBusy ? "Saving…" : "Save user"}</button>

@@ -1,12 +1,17 @@
 package com.travelplan.auth;
 
 import com.travelplan.auth.security.TokenService;
+import com.travelplan.common.security.AccessToken;
+import com.travelplan.common.security.Role;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,86 +21,190 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"management.server.port=0", "security.internal-service-token=test-internal"})
+        properties = {"management.server.port=0", "security.internal-service-token=test-internal",
+                "security.admin-username=root@example.com", "security.admin-password=Bootstrap-Secret-1!"})
 class AuthProvisioningTest {
+    private static final String ORIGIN = "https://localhost:8443";
+    private static final String PASSWORD = "Strong-Secret-1!";
     @Value("${local.server.port}") int port;
     @Autowired TokenService tokens;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    @Test void provisionedUserKeepsItsIdAndNonAdminRole() throws Exception {
-        UUID id = UUID.randomUUID();
-        String username = "operator-" + id + "@example.com";
-        assertThat(provision(id, username).statusCode()).isEqualTo(201);
-
-        String accessToken = login(username).accessToken();
-        TokenService.Claims claims = tokens.verify(accessToken);
-        assertThat(claims.subject()).isEqualTo(id.toString());
-        assertThat(claims.role()).isEqualTo("OPERATOR");
+    @Test void bootstrapAdminIsARealIdentityWithAUuidSubject() throws Exception {
+        AccessToken admin = verify(login("root@example.com", "Bootstrap-Secret-1!"));
+        assertThat(admin.role()).isEqualTo(Role.ADMIN);
+        assertThat(admin.userId()).isNotNull();
     }
 
-    @Test void userDeletionRevokesSessionsAndPreventsNewLogin() throws Exception {
+    @Test void provisionedIdentityKeepsItsIdAndRole() throws Exception {
+        UUID id = UUID.randomUUID();
+        String username = "manager-" + id + "@example.com";
+        assertThat(provision(id, username, "TRAVEL_MANAGER").statusCode()).isEqualTo(201);
+
+        AccessToken token = verify(login(username, PASSWORD));
+        assertThat(token.userId()).isEqualTo(id);
+        assertThat(token.role()).isEqualTo(Role.TRAVEL_MANAGER);
+    }
+
+    @Test void legacyOrUnknownRolesAreRejected() throws Exception {
+        assertThat(provision(UUID.randomUUID(), "op@example.com", "OPERATOR").statusCode()).isEqualTo(400);
+        assertThat(provision(UUID.randomUUID(), "x@example.com", "SUPERUSER").statusCode()).isEqualTo(400);
+    }
+
+    @Test void internalIdentityCommandsAreNotReachableUnderApiPaths() throws Exception {
+        String body = "{\"userId\":\"" + UUID.randomUUID() + "\",\"username\":\"sneaky@example.com\",\"password\":\"x\",\"role\":\"ADMIN\"}";
+        assertThat(post("/api/auth/internal/provision", body, Map.of("X-Internal-Service-Token", "test-internal")).statusCode())
+                .isEqualTo(401);
+        assertThat(post("/internal/identities", body, Map.of("X-Internal-Service-Token", "wrong")).statusCode()).isEqualTo(403);
+    }
+
+    @Test void deletionRevokesSessionsAndPreventsNewLogin() throws Exception {
         UUID id = UUID.randomUUID();
         String username = "deleted-" + id + "@example.com";
-        provision(id, username);
-        String accessToken = login(username).accessToken();
+        provision(id, username, "TRAVELER");
+        String accessToken = accessToken(login(username, PASSWORD));
 
-        assertThat(call("/internal/revoke/" + id, "", "test-internal").statusCode()).isEqualTo(204);
-        assertThat(tokens.verify(accessToken)).isNull();
-        assertThat(loginResponse(username).statusCode()).isEqualTo(401);
+        assertThat(post("/internal/revoke/" + id, "", Map.of("X-Internal-Service-Token", "test-internal")).statusCode()).isEqualTo(204);
+        assertThat(tokens.verify(accessToken)).isEmpty();
+        assertThat(login(username, PASSWORD).statusCode()).isEqualTo(401);
     }
 
-    @Test void roleAndEmailChangesRevokeOldTokenAndApplyToNextLogin() throws Exception {
+    @Test void roleChangesAndDisablingRevokeOldTokensImmediately() throws Exception {
         UUID id = UUID.randomUUID();
         String oldUsername = "old-" + id + "@example.com";
         String newUsername = "new-" + id + "@example.com";
-        provision(id, oldUsername);
-        String oldToken = login(oldUsername).accessToken();
+        provision(id, oldUsername, "TRAVELER");
+        String travelerToken = accessToken(login(oldUsername, PASSWORD));
 
-        String update = "{\"username\":\"" + newUsername + "\",\"role\":\"ADMIN\",\"enabled\":true}";
-        assertThat(call("/api/auth/internal/identities/" + id, update, "test-internal").statusCode()).isEqualTo(204);
-        assertThat(tokens.verify(oldToken)).isNull();
-        assertThat(loginResponse(oldUsername).statusCode()).isEqualTo(401);
-        assertThat(tokens.verify(login(newUsername).accessToken()).role()).isEqualTo("ADMIN");
+        assertThat(updateIdentity(id, newUsername, "TRAVEL_MANAGER", true).statusCode()).isEqualTo(204);
+        assertThat(tokens.verify(travelerToken)).isEmpty();
+        assertThat(login(oldUsername, PASSWORD).statusCode()).isEqualTo(401);
+        String managerToken = accessToken(login(newUsername, PASSWORD));
+        assertThat(tokens.verify(managerToken).orElseThrow().role()).isEqualTo(Role.TRAVEL_MANAGER);
 
-        String newToken = login(newUsername).accessToken();
-        String disable = "{\"username\":\"" + newUsername + "\",\"role\":\"ADMIN\",\"enabled\":false}";
-        assertThat(call("/api/auth/internal/identities/" + id, disable, "test-internal").statusCode()).isEqualTo(204);
-        assertThat(tokens.verify(newToken)).isNull();
-        assertThat(loginResponse(newUsername).statusCode()).isEqualTo(401);
+        assertThat(updateIdentity(id, newUsername, "TRAVEL_MANAGER", false).statusCode()).isEqualTo(204);
+        assertThat(tokens.verify(managerToken)).isEmpty();
+        assertThat(login(newUsername, PASSWORD).statusCode()).isEqualTo(401);
     }
 
-    @Test void internalRevocationStillSupportsBootstrapAdminSubject() throws Exception {
-        String token = tokens.issue("admin", "ADMIN").value();
-        assertThat(call("/internal/revoke/admin", "", "test-internal").statusCode()).isEqualTo(204);
-        assertThat(tokens.verify(token)).isNull();
+    @Test void loginSetsSecureCookiesAndKeepsTheRefreshTokenOutOfTheBody() throws Exception {
+        HttpResponse<String> response = loginAs("TRAVELER");
+        List<String> cookies = response.headers().allValues("Set-Cookie");
+
+        assertThat(cookies).anySatisfy(c -> assertThat(c).startsWith("refresh_token=")
+                .contains("HttpOnly", "Secure", "SameSite=Strict", "Path=/api/auth"));
+        assertThat(cookies).anySatisfy(c -> assertThat(c).startsWith("csrf_token=")
+                .contains("Secure", "SameSite=Strict").doesNotContain("HttpOnly"));
+        assertThat(response.body()).doesNotContain(cookie(response, "refresh_token"));
+        assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
     }
 
-    private HttpResponse<String> provision(UUID id, String username) throws Exception {
-        String body = "{\"userId\":\"" + id + "\",\"username\":\"" + username
-                + "\",\"password\":\"Strong-Secret-1!\",\"role\":\"OPERATOR\"}";
-        return call("/api/auth/internal/provision", body, "test-internal");
+    @Test void refreshRotatesWithCookieCsrfHeaderAndAllowedOrigin() throws Exception {
+        HttpResponse<String> login = loginAs("TRAVELER");
+
+        HttpResponse<String> refreshed = refresh(cookie(login, "refresh_token"), cookie(login, "csrf_token"), ORIGIN);
+        assertThat(refreshed.statusCode()).isEqualTo(200);
+        assertThat(verify(refreshed).role()).isEqualTo(Role.TRAVELER);
+        assertThat(cookie(refreshed, "refresh_token")).isNotEqualTo(cookie(login, "refresh_token"));
     }
 
-    private TokenResponse login(String username) throws Exception {
-        HttpResponse<String> response = loginResponse(username);
+    @Test void refreshRejectsMissingOriginForeignOriginAndBadCsrf() throws Exception {
+        HttpResponse<String> login = loginAs("TRAVELER");
+        String refresh = cookie(login, "refresh_token");
+        String csrf = cookie(login, "csrf_token");
+
+        assertThat(refresh(refresh, csrf, null).statusCode()).isEqualTo(403);
+        assertThat(refresh(refresh, csrf, "https://evil.example").statusCode()).isEqualTo(403);
+        assertThat(refresh(refresh, "forged", ORIGIN).statusCode()).isEqualTo(401);
+        assertThat(refresh(refresh, null, ORIGIN).statusCode()).isEqualTo(401);
+        assertThat(refresh(null, csrf, ORIGIN).statusCode()).isEqualTo(401);
+    }
+
+    @Test void logoutEndsTheSessionAndClearsCookies() throws Exception {
+        HttpResponse<String> login = loginAs("TRAVELER");
+        String token = accessToken(login);
+
+        HttpResponse<String> logout = post("/api/auth/logout", "", Map.of("Authorization", "Bearer " + token));
+        assertThat(logout.statusCode()).isEqualTo(204);
+        assertThat(logout.headers().allValues("Set-Cookie")).anySatisfy(c -> assertThat(c).startsWith("refresh_token=;").contains("Max-Age=0"));
+        assertThat(tokens.verify(token)).isEmpty();
+        assertThat(refresh(cookie(login, "refresh_token"), cookie(login, "csrf_token"), ORIGIN).statusCode()).isEqualTo(401);
+    }
+
+    @Test void meReturnsTheCallerFromTheVerifiedToken() throws Exception {
+        UUID id = UUID.randomUUID();
+        String username = "me-" + id + "@example.com";
+        provision(id, username, "TRAVEL_MANAGER");
+        String token = accessToken(login(username, PASSWORD));
+
+        HttpResponse<String> me = send(HttpRequest.newBuilder(uri("/api/auth/me")).header("Authorization", "Bearer " + token).GET());
+        assertThat(me.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(me.body()).path("userId").asString()).isEqualTo(id.toString());
+        assertThat(json.readTree(me.body()).path("role").asString()).isEqualTo("TRAVEL_MANAGER");
+        assertThat(send(HttpRequest.newBuilder(uri("/api/auth/me")).GET()).statusCode()).isEqualTo(401);
+    }
+
+    private HttpResponse<String> loginAs(String role) throws Exception {
+        UUID id = UUID.randomUUID();
+        String username = role.toLowerCase() + "-" + id + "@example.com";
+        provision(id, username, role);
+        HttpResponse<String> response = login(username, PASSWORD);
         assertThat(response.statusCode()).isEqualTo(200);
-        return new TokenResponse(json.readTree(response.body()).path("accessToken").asString());
+        return response;
     }
 
-    private HttpResponse<String> loginResponse(String username) throws Exception {
-        String body = "{\"username\":\"" + username + "\",\"password\":\"Strong-Secret-1!\"}";
-        return call("/api/auth/login", body, null);
+    private HttpResponse<String> provision(UUID id, String username, String role) throws Exception {
+        String body = "{\"userId\":\"" + id + "\",\"username\":\"" + username + "\",\"password\":\"" + PASSWORD + "\",\"role\":\"" + role + "\"}";
+        return post("/internal/identities", body, Map.of("X-Internal-Service-Token", "test-internal"));
     }
 
-    private HttpResponse<String> call(String path, String body, String serviceToken) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
-                .timeout(Duration.ofSeconds(5)).header("Content-Type", "application/json")
+    private HttpResponse<String> updateIdentity(UUID id, String username, String role, boolean enabled) throws Exception {
+        String body = "{\"username\":\"" + username + "\",\"role\":\"" + role + "\",\"enabled\":" + enabled + "}";
+        return post("/internal/identities/" + id, body, Map.of("X-Internal-Service-Token", "test-internal"));
+    }
+
+    private HttpResponse<String> login(String username, String password) throws Exception {
+        return post("/api/auth/login", "{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}", Map.of());
+    }
+
+    private HttpResponse<String> refresh(String refreshToken, String csrf, String origin) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(uri("/api/auth/refresh")).POST(HttpRequest.BodyPublishers.noBody());
+        if (refreshToken != null) request.header("Cookie", "refresh_token=" + refreshToken);
+        if (csrf != null) request.header("X-CSRF-Token", csrf);
+        if (origin != null) request.header("Origin", origin);
+        return send(request);
+    }
+
+    private AccessToken verify(HttpResponse<String> response) throws Exception {
+        assertThat(response.statusCode()).isEqualTo(200);
+        return tokens.verify(accessToken(response)).orElseThrow();
+    }
+
+    private String accessToken(HttpResponse<String> response) throws Exception {
+        return json.readTree(response.body()).path("accessToken").asString();
+    }
+
+    private static String cookie(HttpResponse<String> response, String name) {
+        Map<String, String> values = response.headers().allValues("Set-Cookie").stream()
+                .map(c -> c.split(";", 2)[0].split("=", 2))
+                .collect(Collectors.toMap(pair -> pair[0], pair -> pair.length > 1 ? pair[1] : "", (a, b) -> b));
+        return values.get(name);
+    }
+
+    private HttpResponse<String> post(String path, String body, Map<String, String> headers) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri(path)).header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body));
-        if (serviceToken != null) builder.header("X-Internal-Service-Token", serviceToken);
+        headers.forEach(builder::header);
+        return send(builder);
+    }
+
+    private URI uri(String path) {
+        return URI.create("http://127.0.0.1:" + port + path);
+    }
+
+    private HttpResponse<String> send(HttpRequest.Builder builder) throws Exception {
         try (HttpClient client = HttpClient.newHttpClient()) {
-            return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            return client.send(builder.timeout(Duration.ofSeconds(30)).build(), HttpResponse.BodyHandlers.ofString());
         }
     }
-
-    private record TokenResponse(String accessToken) {}
 }

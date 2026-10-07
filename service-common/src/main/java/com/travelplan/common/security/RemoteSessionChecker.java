@@ -1,4 +1,4 @@
-package com.travelplan.travel.security;
+package com.travelplan.common.security;
 
 import java.io.IOException;
 import java.net.URI;
@@ -6,27 +6,23 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
-@Component
-public class AuthTokenValidator {
-    public enum Result { ACTIVE, DENIED, UNAVAILABLE }
-
+/** Asks auth-service whether a token's session is active; fails closed when auth is unreachable. */
+public class RemoteSessionChecker implements SessionChecker {
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
     private final URI endpoint;
     private final String serviceToken;
 
-    public AuthTokenValidator(@Value("${auth.service-url:http://127.0.0.1:8081}") String authUrl,
-            @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
-        this.endpoint = URI.create(authUrl + "/internal/token-validation");
+    public RemoteSessionChecker(String authServiceUrl, String serviceToken) {
+        this.endpoint = URI.create(authServiceUrl + "/internal/token-validation");
         this.serviceToken = serviceToken;
     }
 
-    public Result validate(String authorization) {
+    @Override
+    public Result check(String bearerToken) {
         try {
             HttpRequest request = HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(3))
-                    .header("Authorization", authorization)
+                    .header("Authorization", "Bearer " + bearerToken)
                     .header("X-Internal-Service-Token", serviceToken)
                     .POST(HttpRequest.BodyPublishers.noBody()).build();
             int status = client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode();

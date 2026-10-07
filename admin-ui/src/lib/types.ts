@@ -1,6 +1,6 @@
 export type User = {
   id: string; email: string; firstName: string; lastName: string;
-  role: "ADMIN" | "OPERATOR"; status: "ACTIVE" | "DISABLED" | "PENDING" | "FAILED";
+  role: "ADMIN" | "TRAVEL_MANAGER" | "TRAVELER"; status: "ACTIVE" | "DISABLED" | "PENDING" | "FAILED";
   createdAt: string;
 };
 

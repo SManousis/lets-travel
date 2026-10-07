@@ -1,1 +1,2 @@
 com.travelplan.common.ServiceCommonAutoConfiguration
+com.travelplan.common.security.TokenSecurityAutoConfiguration

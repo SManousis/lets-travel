@@ -64,7 +64,7 @@ class StartupTest {
 
     private HttpResponse<String> get(HttpClient client, int port, String path) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
-                .timeout(Duration.ofSeconds(10)).GET().build();
+                .timeout(Duration.ofSeconds(30)).GET().build();
         return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 }

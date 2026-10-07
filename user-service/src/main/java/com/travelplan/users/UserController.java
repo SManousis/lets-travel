@@ -1,4 +1,5 @@
 package com.travelplan.users;
+import com.travelplan.common.security.Role;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -42,8 +43,8 @@ public class UserController {
     private static <T> Page<T> page(List<T> all,int page,int size){if(page<0||size<1||size>100)throw new IllegalArgumentException();int from=Math.min(page*size,all.size());return new Page<>(all.subList(from,Math.min(from+size,all.size())),page,size,all.size());}
     public record Page<T>(List<T> items,int page,int size,long total) {}
     public record Error(String code,String message) {}
-    public record UserCreate(@NotBlank @Email String email,@NotBlank String firstName,@NotBlank String lastName, UserDomain.Role role) { public UserCreate { if(role==null)role=UserDomain.Role.OPERATOR; } }
-    public record UserPatch(@Email String email,String firstName,String lastName,UserDomain.Role role,UserDomain.Status status) {}
+    public record UserCreate(@NotBlank @Email String email,@NotBlank String firstName,@NotBlank String lastName, Role role) { public UserCreate { if(role==null)role=Role.TRAVELER; } }
+    public record UserPatch(@Email String email,String firstName,String lastName,Role role,UserDomain.Status status) {}
     public record TravelerCreate(@NotNull UUID userId,@NotBlank String passportNumber,@NotBlank String nationality) {}
     public record TravelerPatch(@NotBlank String passportNumber,@NotBlank String nationality) {}
 }
