@@ -2,13 +2,14 @@
 openapi: 3.0.3
 info:
   title: Travel search API
-  version: 0.1.0
-  description: 'Target contract for search-service (Phase 5). Elasticsearch is a derived
-    read model of published travels; travel-service remains the source of truth.
+  version: 1.0.0
+  description: 'search-service (Phase 5). Elasticsearch holds a derived copy of the published,
+    bookable travels; travel-service remains the source of truth (see docs/search.md).
     Clients never send Elasticsearch query syntax: free text is matched as plain text
-    and every filter is a typed parameter. When the index is unavailable the service
-    answers 503 SEARCH_UNAVAILABLE and clients fall back to the published-travel
-    browse in travels.yaml, telling the user search is temporarily limited.'
+    and every filter is a typed, bounded parameter. When Elasticsearch is unavailable
+    the service answers 503 SEARCH_UNAVAILABLE and clients fall back to the published
+    travel list (GET /api/travels in travels.yaml), telling the user search is
+    temporarily limited.'
 servers:
 - url: http://localhost:8080
   description: Loopback development gateway; deployment requires HTTPS.
@@ -21,22 +22,33 @@ paths:
       operationId: searchTravels
       summary: Search published, bookable travels
       description: Full-text search over title, description, destinations, countries,
-        activities, accommodation and transport, combined with optional filters.
-        An empty `q` returns all matching travels ordered by start date. Only
-        published travels whose start date is in the future are returned.
+        activities, accommodation, transport and manager name, combined with optional
+        filters. Matching ignores case and accents. Exact phrases rank first, then
+        word prefixes, then matches with a typo. An empty `q` returns every bookable
+        travel ordered by start date. Only published travels that start in the future
+        and still have places are returned.
       parameters:
       - name: q
         in: query
-        description: Plain search text. Trimmed; matching ignores case and diacritics.
+        description: Plain search text, trimmed. Control characters are rejected.
         schema:
           type: string
           maxLength: 100
       - name: country
         in: query
-        description: ISO 3166-1 alpha-2 country code of any destination.
+        description: Country of any destination, as stored on the destination (case
+          and accents ignored).
         schema:
           type: string
-          pattern: "^[A-Z]{2}$"
+          minLength: 2
+          maxLength: 60
+      - name: transportMode
+        in: query
+        description: Transport mode of any leg, e.g. TRAIN (case ignored).
+        schema:
+          type: string
+          minLength: 2
+          maxLength: 60
       - name: startFrom
         in: query
         description: Earliest start date (inclusive).
@@ -45,51 +57,33 @@ paths:
           format: date
       - name: startTo
         in: query
-        description: Latest start date (inclusive).
+        description: Latest start date (inclusive); not before `startFrom`.
         schema:
           type: string
           format: date
       - name: minPrice
         in: query
-        description: Minimum price in minor units of `currency`.
+        description: Minimum price in `currency`.
         schema:
-          type: integer
-          format: int64
+          type: number
           minimum: 0
       - name: maxPrice
         in: query
-        description: Maximum price in minor units of `currency`.
+        description: Maximum price in `currency`; not below `minPrice`.
         schema:
-          type: integer
-          format: int64
+          type: number
           minimum: 0
       - name: currency
         in: query
-        description: Required when a price filter is given.
+        description: Only travels priced in this currency. Required when a price filter
+          is given, because prices in different currencies are not comparable.
         schema:
           "$ref": "#/components/schemas/Currency"
-      - name: activityCategory
-        in: query
-        schema:
-          "$ref": "#/components/schemas/ActivityCategory"
-      - name: transportMode
-        in: query
-        schema:
-          "$ref": "#/components/schemas/TransportMode"
-      - name: accommodationCategory
-        in: query
-        schema:
-          "$ref": "#/components/schemas/AccommodationCategory"
-      - name: availableOnly
-        in: query
-        description: Exclude travels with no remaining places.
-        schema:
-          type: boolean
-          default: true
       - name: sort
         in: query
         description: '`RELEVANCE` (default when `q` is set), `START_DATE` (default
-          otherwise), `PRICE_ASC` or `PRICE_DESC`. Ties break on travel ID.'
+          otherwise), `PRICE_ASC` or `PRICE_DESC`. Ties break on start date, then
+          travel ID, so the order is always the same.'
         schema:
           type: string
           enum:
@@ -97,8 +91,20 @@ paths:
           - START_DATE
           - PRICE_ASC
           - PRICE_DESC
-      - "$ref": "#/components/parameters/Page"
-      - "$ref": "#/components/parameters/Size"
+      - name: page
+        in: query
+        description: Zero-based page. `(page + 1) * size` may not exceed 1000.
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
       responses:
         '200':
           description: Matching travels.
@@ -118,9 +124,10 @@ paths:
     get:
       operationId: autocompleteTravels
       summary: Suggest completions while typing
-      description: Prefix suggestions for travel titles, destinations, countries and
-        activities. Clients debounce input (about 250 ms) and send at least two
-        characters. Exact and prefix matches rank above fuzzy matches.
+      description: Suggestions from travel titles, destinations, countries and activities
+        of bookable travels. Clients debounce input (about 250 ms) and send at least
+        two characters. Exact matches come first, then prefix matches, then matches
+        with a typo.
       parameters:
       - name: q
         in: query
@@ -151,6 +158,46 @@ paths:
           "$ref": "#/components/responses/Forbidden"
         '503':
           "$ref": "#/components/responses/Unavailable"
+  "/api/search/admin/status":
+    get:
+      operationId: searchIndexStatus
+      summary: Index health, lag and failing changes
+      description: Operational view for Admins. `pendingChanges` is the sync lag (travel
+        changes received but not yet applied); `failingChanges` lists changes whose
+        last attempt failed and that are being retried.
+      x-required-role: ADMIN
+      responses:
+        '200':
+          description: Current index state.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/IndexStatus"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+  "/api/search/admin/reindex":
+    post:
+      operationId: rebuildSearchIndex
+      summary: Rebuild the index from travel-service now
+      description: Copies every bookable travel into a new versioned index and switches
+        the `travels` alias to it in one step; searches keep using the old index until
+        then. The same rebuild also runs automatically every few minutes.
+      x-required-role: ADMIN
+      responses:
+        '200':
+          description: The rebuild finished.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Rebuild"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
 components:
   securitySchemes:
     bearerAuth:
@@ -159,25 +206,10 @@ components:
       bearerFormat: JWT
       description: Access token checked at the gateway and in the receiving service.
         Roles inherit, see docs/api/README.md.
-  parameters:
-    Page:
-      name: page
-      in: query
-      schema:
-        type: integer
-        minimum: 0
-        default: 0
-    Size:
-      name: size
-      in: query
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 100
-        default: 20
   responses:
     BadRequest:
-      description: Invalid query, filter or pagination value.
+      description: Invalid query, filter or pagination value (`INVALID_QUERY`), with
+        one entry per problem in `fieldErrors`.
       content:
         application/json:
           schema:
@@ -195,8 +227,9 @@ components:
           schema:
             "$ref": "#/components/schemas/Error"
     Unavailable:
-      description: The search index is unavailable (`SEARCH_UNAVAILABLE`). Use the
-        published-travel browse instead.
+      description: Elasticsearch is unavailable (`SEARCH_UNAVAILABLE`), or for a rebuild
+        travel-service is (`DEPENDENCY_UNAVAILABLE`). Use the published travel list
+        instead.
       content:
         application/json:
           schema:
@@ -206,54 +239,13 @@ components:
           schema:
             type: integer
             minimum: 1
-          description: Suggested delay in seconds, if known.
+          description: Suggested delay in seconds.
   schemas:
     Currency:
       type: string
       pattern: "^[A-Z]{3}$"
       description: ISO 4217 code.
       example: EUR
-    ActivityCategory:
-      type: string
-      enum:
-      - CULTURE
-      - NATURE
-      - ADVENTURE
-      - BEACH
-      - FOOD
-      - NIGHTLIFE
-      - WELLNESS
-      - SPORT
-    TransportMode:
-      type: string
-      enum:
-      - PLANE
-      - TRAIN
-      - BUS
-      - CAR
-      - BOAT
-    AccommodationCategory:
-      type: string
-      enum:
-      - HOTEL
-      - HOSTEL
-      - APARTMENT
-      - RESORT
-      - CAMPING
-    Money:
-      type: object
-      additionalProperties: false
-      properties:
-        amountMinor:
-          type: integer
-          format: int64
-          minimum: 0
-          description: Amount in minor units, e.g. cents.
-        currency:
-          "$ref": "#/components/schemas/Currency"
-      required:
-      - amountMinor
-      - currency
     TravelHit:
       type: object
       additionalProperties: false
@@ -262,6 +254,8 @@ components:
           type: string
           format: uuid
         title:
+          type: string
+        description:
           type: string
         destinations:
           type: array
@@ -278,40 +272,53 @@ components:
         endDate:
           type: string
           format: date
+        durationDays:
+          type: integer
         price:
-          "$ref": "#/components/schemas/Money"
+          type: number
+          minimum: 0
+        currency:
+          "$ref": "#/components/schemas/Currency"
         remainingPlaces:
           type: integer
           minimum: 0
         managerId:
           type: string
           format: uuid
-        managerDisplayName:
+        managerName:
           type: string
-        averageRating:
-          type: number
-          format: float
-          minimum: 1
-          maximum: 5
           nullable: true
+          description: Null when user-service could not provide it at indexing time.
+        activities:
+          type: array
+          items:
+            type: string
+        transportModes:
+          type: array
+          items:
+            type: string
         highlights:
           type: array
-          description: Plain-text fragments around matches; clients render them as
-            text, never as HTML.
+          description: Plain-text fragments around matches in the details; clients render
+            them as text, never as HTML.
           items:
             type: string
       required:
       - travelId
       - title
+      - description
       - destinations
       - countries
       - startDate
       - endDate
+      - durationDays
       - price
+      - currency
       - remainingPlaces
       - managerId
-      - managerDisplayName
-      - averageRating
+      - managerName
+      - activities
+      - transportModes
       - highlights
     TravelHitPage:
       type: object
@@ -333,8 +340,9 @@ components:
         indexedAt:
           type: string
           format: date-time
-          description: Time of the newest change applied to the index, so clients
-            can show freshness.
+          nullable: true
+          description: Time of the newest change applied to the index, so clients can
+            show freshness.
       required:
       - items
       - page
@@ -359,7 +367,7 @@ components:
           type: string
           format: uuid
           nullable: true
-          description: Set for TRAVEL suggestions.
+          description: Set for TRAVEL suggestions, which open the travel directly.
         context:
           type: string
           description: Short disambiguation, e.g. dates and first destination.
@@ -378,6 +386,97 @@ components:
             "$ref": "#/components/schemas/Suggestion"
       required:
       - items
+    Rebuild:
+      type: object
+      additionalProperties: false
+      properties:
+        index:
+          type: string
+          example: travels-v1-1791380000000
+        documents:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        outcome:
+          type: string
+          enum:
+          - SUCCEEDED
+          - FAILED
+        error:
+          type: string
+          nullable: true
+      required:
+      - index
+      - documents
+      - startedAt
+      - finishedAt
+      - outcome
+      - error
+    IndexStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        alias:
+          type: string
+          example: travels
+        currentIndex:
+          type: string
+          nullable: true
+        mappingVersion:
+          type: string
+          example: v1
+        elasticsearchAvailable:
+          type: boolean
+        documents:
+          type: integer
+          format: int64
+        pendingChanges:
+          type: integer
+        failingChanges:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              travelId:
+                type: string
+                format: uuid
+              attempts:
+                type: integer
+              lastError:
+                type: string
+              lastAttemptAt:
+                type: string
+                format: date-time
+            required:
+            - travelId
+            - attempts
+            - lastError
+            - lastAttemptAt
+        lastAppliedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastRebuild:
+          type: object
+          nullable: true
+          description: Null until the first rebuild has run.
+          allOf:
+          - "$ref": "#/components/schemas/Rebuild"
+      required:
+      - alias
+      - currentIndex
+      - mappingVersion
+      - elasticsearchAvailable
+      - documents
+      - pendingChanges
+      - failingChanges
+      - lastAppliedAt
+      - lastRebuild
     FieldError:
       type: object
       additionalProperties: false

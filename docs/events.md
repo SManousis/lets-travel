@@ -56,8 +56,8 @@ Rules for payloads:
 | --- | --- | --- |
 | travel-service | `TravelPublished`, `TravelUpdated`, `TravelUnpublished`, `TravelDeleted` | search-service (index), engagement-service (price, dates, capacity and manager snapshot) |
 | engagement-service | `SubscriptionReserved`, `SubscriptionConfirmed`, `SubscriptionPaymentFailed`, `SubscriptionCancelled`, `SubscriptionCompleted` (Phase 3, see [subscriptions](subscriptions.md)) | payment-service, travel-service (recommendation data), search-service (remaining places), dashboards |
-| engagement-service | `FeedbackSubmitted` | travel-service (recommendation weights), search-service (average rating) |
-| engagement-service | `ReportFiled`, `ReportResolved` | none yet (moderation stays inside engagement) |
+| engagement-service | `FeedbackSubmitted` (Phase 6, see [feedback and reports](feedback-and-reports.md); IDs and rating only) | travel-service (recommendation weights), search-service (average rating) |
+| engagement-service | `ReportFiled`, `ReportModerated` (Phase 6; IDs, category and status only, never the description) | dashboards, notifications (none subscribed yet) |
 | payment-service | `SubscriptionPaymentSucceeded`, `SubscriptionPaymentFailed`, `SubscriptionPaymentRefunded` | engagement-service (confirm or release the place, income figures) |
 | user-service | `UserProfileUpdated`, `UserRoleChanged`, `UserDeleted` | engagement-service (display names, deletion), search-service (manager names) |
 
@@ -147,8 +147,8 @@ Projections are checked against their sources, not trusted blindly.
 
 | Projection | Compared with | Check |
 | --- | --- | --- |
-| Elasticsearch travel index | travel-service published travels | Count, plus IDs and `aggregateVersion` per travel |
-| Remaining places in the index | engagement-service active subscriptions | Capacity minus active subscriptions per travel |
+| Elasticsearch travel index | travel-service bookable travels | Full rebuild every 5 minutes replaces the index with travel-service's current set (Phase 5, [search](search.md)) |
+| Remaining places in the index | travel-service remaining capacity | Re-indexed on every reservation and release notification, and by the same rebuild |
 | Dashboard income | payment-service succeeded and refunded payments | Sum per month and currency |
 | Dashboard subscription counts | engagement-service subscriptions | Count per travel and status |
 | Neo4j participation | engagement-service confirmed and completed subscriptions | Set of (traveler, travel) pairs |
@@ -157,6 +157,29 @@ Each owning service exposes a private snapshot endpoint for its side
 (`GET /internal/snapshots/<name>`). A scheduled job runs each check nightly and on
 demand, reports differences as a metric and a log entry, and repairs a difference
 by re-requesting the aggregate's current state from its owner, never by guessing.
+
+## Search index sync (Phase 5)
+
+search-service does not poll a feed yet. The Neo4j `TravelEvent` markers have no
+feed position and seat reservations do not create one, so the simplest correct design
+was chosen instead (details in [search](search.md)):
+
+1. After every committed travel change (create, update, publish, unpublish, delete,
+   reserve or release a place) travel-service posts
+   `POST /internal/search/index/travels/{id}` to search-service. The message carries
+   only the ID and is fire-and-forget: a failure never fails the travel request.
+2. search-service queues the ID and, once a second, fetches the travel's current state
+   from `GET /internal/search/travels/{id}`. It indexes the travel when it is published
+   and bookable, otherwise removes it. Applying the same ID twice gives the same
+   result, so duplicates are harmless (idempotent). Failed IDs stay queued and retry.
+3. Every 5 minutes (and at start-up, retried every 30 seconds after a failure) a full
+   rebuild copies `GET /internal/search/travels` (all bookable travels) into a new
+   versioned index and switches the `travels` alias atomically. This repairs any change
+   whose notification was lost (search-service down, a destination renamed, a user
+   deleted, a travel whose start date passed).
+
+Writes use the travel version with `version_type=external_gte`, so a late write can
+never replace newer data.
 
 ## Rebuild
 
