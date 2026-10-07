@@ -98,7 +98,8 @@ it("shows travelers their account instead of the admin workspace", async () => {
         role: "TRAVELER", status: "ACTIVE", memberSince: "2026-10-01T00:00:00Z" });
     }
     if (String(input).startsWith("/api/travels?")) return json({ items: [], page: 0, size: 50, total: 0 });
-    if (String(input).startsWith("/api/subscriptions?")) {
+    if (String(input).startsWith("/api/subscriptions?") || String(input).startsWith("/api/feedback/mine?")
+      || String(input).startsWith("/api/reports?")) {
       return json({ items: [], page: 0, size: 100, totalElements: 0, totalPages: 0 });
     }
     throw new Error(`Unexpected request: ${String(input)}`);
@@ -111,6 +112,9 @@ it("shows travelers their account instead of the admin workspace", async () => {
   expect(screen.queryByRole("navigation", { name: "Admin sections" })).not.toBeInTheDocument();
   expect(await screen.findByText("You have no subscriptions yet.")).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Subscribers" })).not.toBeInTheDocument();
+  expect(await screen.findByText("No finished trips are waiting for your feedback.")).toBeInTheDocument();
+  expect(await screen.findByText("You have not filed any reports.")).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Feedback on your travels" })).not.toBeInTheDocument();
 });
 
 it("lets a visitor sign up and then sign in with the new email", async () => {

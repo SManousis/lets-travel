@@ -5,6 +5,9 @@ import { Empty, Message } from "../../components/Shared";
 import { cutoffDate, formatMoney, formatPrice, isActive, statusClass, statusLabels } from "./format";
 import { PayForSubscription } from "./PayForSubscription";
 import { paymentClass, paymentSummary } from "./paymentFormat";
+import { TravelSearch } from "../search/TravelSearch";
+import { ManagerProfile } from "../managers/ManagerProfile";
+import { ReportForm } from "../reports/ReportForm";
 
 /** Traveler view: browse bookable travels, subscribe, and manage "my subscriptions". */
 export function TravelerTrips({ context }: { context: ApiContext }) {
@@ -14,6 +17,8 @@ export function TravelerTrips({ context }: { context: ApiContext }) {
   const [paymentsUnavailable, setPaymentsUnavailable] = React.useState(false);
   const [payingFor, setPayingFor] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<TravelOffer | null>(null);
+  // Extra panel under the selected travel: its organiser's page or a report form.
+  const [extra, setExtra] = React.useState<{ travelId: string; view: "organiser" | "report" } | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
@@ -70,11 +75,25 @@ export function TravelerTrips({ context }: { context: ApiContext }) {
     finally { setBusy(false); }
   }
 
+  /** Opens a search result: the travel's full details come from travel-service, the source of truth. */
+  async function open(travelId: string) {
+    setError("");
+    const known = offers?.find(travel => travel.id === travelId);
+    if (known) { setSelected(known); return; }
+    try { setSelected(await api<TravelOffer>(context, `/api/travels/${encodeURIComponent(travelId)}`)); }
+    catch (caught) { setError(errorMessage(caught)); }
+  }
+
+  function toggleExtra(travelId: string, view: "organiser" | "report") {
+    setExtra(extra?.travelId === travelId && extra.view === view ? null : { travelId, view });
+  }
+
   const current = selected ? activeFor(selected.id) : undefined;
 
   return <div className="workflow-stack">
     {error && <Message kind="error">{error}</Message>}
     {notice && <Message kind="success">{notice}</Message>}
+    <TravelSearch context={context} onOpen={travelId => void open(travelId)} />
     <div className="workspace-grid">
       <section className="workspace-card" aria-labelledby="offers-title">
         <div className="card-heading"><h3 id="offers-title">Available travels</h3>
@@ -101,6 +120,14 @@ export function TravelerTrips({ context }: { context: ApiContext }) {
             onClick={() => void cancel(current)}>Cancel subscription</button>}
         </div> : <div className="actions"><button type="button" className="primary" disabled={busy || !selected.bookable}
           onClick={() => void subscribe(selected)}>{busy ? "Reserving…" : "Subscribe"}</button></div>}
+        <div className="actions">
+          <button type="button" onClick={() => toggleExtra(selected.id, "organiser")}>About the organiser</button>
+          <button type="button" onClick={() => toggleExtra(selected.id, "report")}>Report this travel</button>
+        </div>
+        {extra?.travelId === selected.id && extra.view === "organiser"
+          && <ManagerProfile context={context} managerId={selected.managerId} />}
+        {extra?.travelId === selected.id && extra.view === "report" && <ReportForm context={context}
+          target={{ type: "TRAVEL", id: selected.id, name: selected.name }} onClose={() => setExtra(null)} />}
       </section>}
     </div>
     <section className="workspace-card" aria-labelledby="my-subscriptions-title">
