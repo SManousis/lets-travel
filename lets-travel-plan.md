@@ -74,7 +74,7 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 - [x] Phase 0 — Baseline verification and architecture contracts
 - [x] Phase 1 — Roles, identities, and authorization
 - [x] Phase 2 — Manager-owned travel offerings and public profiles (one item deferred to Phase 3: protecting confirmed subscriptions)
-- [ ] Phase 3 — Subscriptions, subscriber management, and cancellation policy
+- [x] Phase 3 — Subscriptions, subscriber management, and cancellation policy
 - [ ] Phase 4 — Secure subscription payments
 - [ ] Phase 5 — Elasticsearch search and autocomplete
 - [ ] Phase 6 — Feedback, reports, and moderation
@@ -146,7 +146,7 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 - [x] Prevent manager ownership reassignment through normal update APIs; provide a separate audited Admin operation if reassignment is required.
 - [x] Preserve complete travel details used by search and recommendations: destinations, dates, activities, accommodation, transport, capacity, price/currency, and lifecycle status.
 - [x] Validate date ranges, capacity, nonnegative prices, currency, itinerary bounds, and publication readiness.
-- [ ] Prevent edits that would invalidate confirmed subscriptions; define allowed post-subscription changes and notify affected subscribers. Deferred to Phase 3: needs subscriptions; capacity below occupancy is already rejected.
+- [ ] Prevent edits that would invalidate confirmed subscriptions; define allowed post-subscription changes and notify affected subscribers. Phase 3: once places are taken, dates, time zone, price and currency are fixed (`TRAVEL_HAS_SUBSCRIBERS`) and capacity cannot drop below occupancy; other changes emit `TRAVEL_UPDATED`. Delivering notifications to subscribers is still open.
 - [x] Add a public manager page API containing manager summary, completed-travel statistics, past ratings, and report count without exposing private report content. Ratings and reports are empty/zero until Phase 6.
 - [x] Emit versioned travel-created/updated/published/unpublished/deleted events for downstream search and analytics projections.
 - [x] Add tests for Admin override, manager ownership, published visibility, invalid changes, and concurrent updates.
@@ -162,18 +162,20 @@ Evidence: `docs/audit/phase-2-verification-2026-10-07.md`.
 
 **Main files:** New `engagement-service/src/main/`, engagement migrations, travel/user internal clients, subscription OpenAPI contract, service tests.
 
-- [ ] Model subscription states such as `PENDING_PAYMENT`, `CONFIRMED`, `CANCELLED_BY_TRAVELER`, `CANCELLED_BY_MANAGER`, `PAYMENT_FAILED`, and `COMPLETED`.
-- [ ] Store travel, manager, traveler/user, price/currency snapshot, cutoff date, payment reference, timestamps, and cancellation reason.
-- [ ] Add an idempotent subscribe operation that validates an active traveler, published future travel, remaining capacity, and no active duplicate subscription.
-- [ ] Protect the final available place against concurrent oversubscription with a documented atomic reservation strategy.
-- [ ] Calculate the cancellation cutoff from the travel-local calendar and allow cancellation exactly three days before start, but reject later traveler cancellations.
-- [ ] Add explicit boundary tests for four days before, exactly three days before, less than three days before, the start date, time-zone changes, and repeated requests.
-- [ ] Let managers and Admins list subscribers for authorized travels, view safe profile summaries, and unsubscribe a traveler with an audit reason.
-- [ ] Prevent managers from viewing or changing subscriber lists belonging to another manager.
-- [ ] Release reserved capacity after failed payment or valid cancellation and make every retry idempotent.
-- [ ] Maintain traveler cancellation history for personal statistics without exposing it to unrelated users.
-- [ ] Emit subscription lifecycle events for payment, Neo4j participation/recommendation data, notifications, and dashboards.
-- [ ] **Completion gate:** Subscription, capacity, manager removal, and all cutoff boundary scenarios pass through the API with concurrency and retry tests.
+- [x] Model subscription states such as `PENDING_PAYMENT`, `CONFIRMED`, `CANCELLED_BY_TRAVELER`, `CANCELLED_BY_MANAGER`, `PAYMENT_FAILED`, and `COMPLETED`.
+- [x] Store travel, manager, traveler/user, price/currency snapshot, cutoff date, payment reference, timestamps, and cancellation reason.
+- [x] Add an idempotent subscribe operation that validates an active traveler, published future travel, remaining capacity, and no active duplicate subscription.
+- [x] Protect the final available place against concurrent oversubscription with a documented atomic reservation strategy.
+- [x] Calculate the cancellation cutoff from the travel-local calendar and allow cancellation exactly three days before start, but reject later traveler cancellations.
+- [x] Add explicit boundary tests for four days before, exactly three days before, less than three days before, the start date, time-zone changes, and repeated requests.
+- [x] Let managers and Admins list subscribers for authorized travels, view safe profile summaries, and unsubscribe a traveler with an audit reason.
+- [x] Prevent managers from viewing or changing subscriber lists belonging to another manager.
+- [x] Release reserved capacity after failed payment or valid cancellation and make every retry idempotent.
+- [x] Maintain traveler cancellation history for personal statistics without exposing it to unrelated users.
+- [x] Emit subscription lifecycle events for payment, Neo4j participation/recommendation data, notifications, and dashboards. Written to the engagement `outbox_event` table in the same transaction; the feed publisher arrives with the event pipeline.
+- [x] **Completion gate:** Subscription, capacity, manager removal, and all cutoff boundary scenarios pass through the API with concurrency and retry tests.
+
+Evidence: `docs/audit/phase-3-verification.md`. Design: `docs/subscriptions.md`.
 
 ## Phase 4 — Secure subscription payments
 
@@ -183,17 +185,17 @@ Evidence: `docs/audit/phase-2-verification-2026-10-07.md`.
 
 **Main files:** `payment-service/src/main/`, payment migrations, provider adapters, `engagement-service` payment client/consumer, `docs/payments.md`, API contracts and tests.
 
-- [ ] Add a subscription-payment aggregate linked to subscription ID, user ID, amount, currency, provider, provider reference, and lifecycle state.
-- [ ] Reuse validated saved payment methods while proving that the authenticated user owns the selected method.
-- [ ] Support the configured Stripe and PayPal sandbox flows and at least one clear test/simulation path when external credentials are unavailable.
-- [ ] Keep payment provider secrets in Vault/deployment secrets and prevent storage or logging of raw card or account credentials.
-- [ ] Make payment creation idempotent across browser retries, gateway retries, provider timeouts, and event redelivery.
-- [ ] Persist intent before provider calls and reconcile ambiguous provider responses instead of issuing an immediate second charge.
-- [ ] Confirm the subscription only after a verified successful payment; release capacity after a terminal payment failure.
-- [ ] Define cancellation/refund behavior explicitly and show the resulting payment and subscription state to the traveler.
-- [ ] Return safe, actionable failure messages without leaking provider internals or sensitive data.
-- [ ] Add tests for wrong-owner method use, declined payment, provider timeout, duplicate request, callback verification, reconciliation, and successful confirmation.
-- [ ] **Completion gate:** Stripe and PayPal sandbox/simulation journeys produce exactly one payment, correct subscription state, redacted logs, and recover correctly from a forced timeout.
+- [x] Add a subscription-payment aggregate linked to subscription ID, user ID, amount, currency, provider, provider reference, and lifecycle state.
+- [x] Reuse validated saved payment methods while proving that the authenticated user owns the selected method.
+- [x] Support the configured Stripe and PayPal sandbox flows and at least one clear test/simulation path when external credentials are unavailable. (Stripe/PayPal adapters are verified against local stand-ins and the payment simulator; no credentialed sandbox charge has been run.)
+- [x] Keep payment provider secrets in Vault/deployment secrets and prevent storage or logging of raw card or account credentials.
+- [x] Make payment creation idempotent across browser retries, gateway retries, provider timeouts, and event redelivery.
+- [x] Persist intent before provider calls and reconcile ambiguous provider responses instead of issuing an immediate second charge.
+- [x] Confirm the subscription only after a verified successful payment; release capacity after a terminal payment failure.
+- [x] Define cancellation/refund behavior explicitly and show the resulting payment and subscription state to the traveler.
+- [x] Return safe, actionable failure messages without leaking provider internals or sensitive data.
+- [x] Add tests for wrong-owner method use, declined payment, provider timeout, duplicate request, callback verification, reconciliation, and successful confirmation.
+- [ ] **Completion gate:** Stripe and PayPal sandbox/simulation journeys produce exactly one payment, correct subscription state, redacted logs, and recover correctly from a forced timeout. (Proven by automated simulation tests, see `docs/audit/phase-4-verification.md`; still open: the manual Compose demo run and a credentialed Stripe/PayPal sandbox run.)
 
 ## Phase 5 — Elasticsearch search and autocomplete
 

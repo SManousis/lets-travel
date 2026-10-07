@@ -20,12 +20,19 @@ paths:
       operationId: subscribeToTravel
       summary: Reserve a place on a travel
       x-required-role: TRAVELER
-      description: Reserves one place and creates a `PENDING_PAYMENT` subscription
-        with a snapshot of the price and the cancellation cutoff. The place is
-        released if payment fails or does not complete within 30 minutes. The last
-        place is reserved atomically, so concurrent requests cannot oversubscribe.
-        Conflict codes are `TRAVEL_NOT_BOOKABLE` (unpublished, started or past),
-        `TRAVEL_FULL` and `ALREADY_SUBSCRIBED` (an active subscription exists).
+      description: Checks that the caller's account is active, reserves one place
+        atomically in travel-service (which owns capacity) and creates a
+        `PENDING_PAYMENT` subscription with a snapshot of the travel's title, dates,
+        time zone, price and cancellation cutoff. Concurrent requests cannot
+        oversubscribe, and one traveler holds at most one active subscription per
+        travel. Pay through payment-service `POST /api/subscription-payments`
+        (payments.yaml). The place is released when payment fails (payment-service
+        reports it) or when the reservation is unpaid at `reservationExpiresAt`
+        (30 minutes; it becomes `PAYMENT_FAILED`). Conflict codes
+        are `TRAVEL_NOT_BOOKABLE` (unpublished, started or past), `TRAVEL_FULL`,
+        `ALREADY_SUBSCRIBED` (an active subscription exists), `TRAVELER_NOT_ACTIVE`
+        and `IDEMPOTENCY_KEY_REUSED` (same key, different travel). A retry with the
+        same key returns the original subscription with `201`.
       parameters:
       - "$ref": "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -118,9 +125,13 @@ paths:
       x-required-role: TRAVELER
       description: Allowed while the travel's local calendar date is on or before
         `cancellationCutoff` (start date minus 3 days); later requests return 409
-        `CANCELLATION_CUTOFF_PASSED`. A paid subscription is refunded through the
-        payment service and the place is released. Repeating a successful
-        cancellation returns the cancelled subscription.
+        `CANCELLATION_CUTOFF_PASSED`. Only `PENDING_PAYMENT` and `CONFIRMED`
+        subscriptions can be cancelled (409 `SUBSCRIPTION_NOT_ACTIVE` otherwise).
+        The place is released. A `CONFIRMED` (paid) subscription is refunded in full;
+        payment-service is asked for the refund, and asked again by housekeeping
+        while it is unavailable. An unpaid subscription has nothing to refund.
+        Repeating a successful cancellation returns the cancelled subscription, even
+        after the cutoff. Only the subscriber may cancel; others receive 404.
       parameters:
       - "$ref": "#/components/parameters/SubscriptionId"
       - "$ref": "#/components/parameters/IdempotencyKey"
@@ -148,8 +159,8 @@ paths:
       operationId: listTravelSubscribers
       summary: List subscribers of a managed travel
       x-required-role: TRAVEL_MANAGER
-      description: Active and past subscribers with safe profile summaries. Only the
-        travel's manager or an admin; other managers receive 404.
+      description: Active and past subscribers with safe profile summaries, newest
+        first. Only the travel's manager or an admin; other managers receive 404.
       parameters:
       - "$ref": "#/components/parameters/TravelId"
       - name: status
@@ -180,8 +191,11 @@ paths:
       operationId: removeTravelSubscriber
       summary: Unsubscribe a traveler from a managed travel
       x-required-role: TRAVEL_MANAGER
-      description: Sets `CANCELLED_BY_MANAGER`, refunds any payment in full and
-        records the reason in the audit trail. Not limited by the traveler cutoff.
+      description: Sets `CANCELLED_BY_MANAGER`, releases the place and records the
+        manager, time and reason in the subscription's audit history. Not limited by
+        the traveler cutoff. A paid subscription is refunded in full.
+        Repeating a successful removal returns the cancelled subscription; an
+        inactive subscription returns 409 `SUBSCRIPTION_NOT_ACTIVE`.
       parameters:
       - "$ref": "#/components/parameters/TravelId"
       - "$ref": "#/components/parameters/SubscriptionId"
@@ -579,11 +593,17 @@ components:
         endDate:
           type: string
           format: date
+        timeZone:
+          type: string
+          description: IANA zone of the travel's dates; the cutoff is judged in it.
         cancellationCutoff:
           type: string
           format: date
           description: Last travel-local date on which the traveler may cancel
             (start date minus 3 days).
+        travelerMayCancel:
+          type: boolean
+          description: True while the subscription is active and the cutoff has not passed.
         paymentId:
           type: string
           format: uuid
@@ -593,6 +613,14 @@ components:
           format: date-time
           nullable: true
           description: Set while PENDING_PAYMENT.
+        cancellationReason:
+          type: string
+          nullable: true
+          description: The manager's or admin's reason for a removal.
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -609,9 +637,13 @@ components:
       - price
       - startDate
       - endDate
+      - timeZone
       - cancellationCutoff
+      - travelerMayCancel
       - paymentId
       - reservationExpiresAt
+      - cancellationReason
+      - cancelledAt
       - createdAt
       - updatedAt
     SubscriptionPage:
@@ -653,18 +685,27 @@ components:
         memberSince:
           type: string
           format: date
+          nullable: true
+          description: Null when the account no longer exists.
         completedTrips:
           type: integer
           minimum: 0
         reportCount:
           type: integer
           minimum: 0
-          description: Upheld reports against this traveler.
+          description: Upheld reports against this traveler (always 0 until Phase 6).
         status:
           "$ref": "#/components/schemas/SubscriptionStatus"
         subscribedAt:
           type: string
           format: date-time
+        cancellationReason:
+          type: string
+          nullable: true
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
       required:
       - subscriptionId
       - travelerId
@@ -674,6 +715,8 @@ components:
       - reportCount
       - status
       - subscribedAt
+      - cancellationReason
+      - cancelledAt
     SubscriberPage:
       type: object
       additionalProperties: false

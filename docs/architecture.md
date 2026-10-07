@@ -12,8 +12,8 @@ and [API contracts](api/README.md) for implementation scope.
 | Auth service | Credentials, roles, sessions, revocation state | 8081 / 9081 | `/api/auth/**` |
 | User service | User profiles, travelers, user lifecycle coordination | 8082 / 9082 | `/api/users/**`, `/api/travelers/**` |
 | Travel service | Manager-owned travels, destinations, ordered itineraries, participation | 8083 / 9083 | `/api/travels/**`, `/api/destinations/**` |
-| Payment service | Saved provider references, gateway settings, provider operations | 8084 / 9084 | `/api/payment-methods/**`, `/api/payment-gateways/**` |
-| Engagement service | Subscriptions, cancellation history, feedback, reports, dashboard projections (PostgreSQL `travel_engagement`) | 8085 / 9085 | `/api/managers/**` |
+| Payment service | Saved provider references, gateway settings, subscription payments, refunds, signed provider webhooks | 8084 / 9084 | `/api/payment-methods/**`, `/api/payment-gateways/**`, `/api/subscription-payments/**`, `/api/payment-options`, `/api/payment-webhooks/{stripe,test}` |
+| Engagement service | Subscriptions, cancellation history, feedback, reports, dashboard projections (PostgreSQL `travel_engagement`) | 8085 / 9085 | `/api/managers/**`, `/api/subscriptions/**`, `/api/managed-travels/**` |
 | Search service | Search/autocomplete API and the Elasticsearch travel index | 8086 / 9086 | Not routed yet |
 
 Local development binds application and management listeners to loopback. The
@@ -149,6 +149,13 @@ service gains an endpoint the matrix does not list. `GatewayRoleMatrixTest` does
 the same for every routed path at the gateway. `/internal/**` endpoints refuse any
 request without the internal service token before a controller runs.
 
+## Subscriptions (Phase 3)
+
+engagement-service owns subscription state in PostgreSQL; travel-service owns capacity
+and reserves or releases a place atomically in Neo4j through a private endpoint. The
+three-day traveler cutoff is judged in the travel's own time zone. Details, states and
+the payment hand-off: [subscriptions](subscriptions.md).
+
 ## Manager-owned travel offerings (Phase 2)
 
 - **Ownership.** Every travel has an immutable `managerId`. A `TRAVEL_MANAGER`
@@ -207,12 +214,11 @@ sequenceDiagram
     Note over S,E: travel is now searchable and bookable
     participant V as Traveler (browser)
     V->>E: subscribe
-    E->>E: one transaction: reserve place + SubscriptionReserved
+    E->>T: reserve place (internal, atomic in Neo4j)
+    E->>E: one transaction: PENDING_PAYMENT subscription + SubscriptionReserved
     V->>P: pay
-    P->>E: confirm subscription is pending and owned (internal)
-    P->>P: charge provider, then SubscriptionPaymentSucceeded
-    E->>P: poll feed, confirm subscription + SubscriptionConfirmed
-    T->>E: poll feed, add participation to graph
+    P->>P: charge provider
+    P->>E: payment outcome (internal): CONFIRMED + SubscriptionConfirmed
     S->>E: poll feed, update remaining places
     Note over E: dashboard projections update from the same events
 ```
