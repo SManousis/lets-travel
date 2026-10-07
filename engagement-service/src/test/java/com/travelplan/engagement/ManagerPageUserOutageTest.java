@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.ObjectMapper;
@@ -23,8 +24,12 @@ import tools.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** User-service-only outage: users stub is stopped, travel stub stays up. */
+@ActiveProfiles("infra")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"management.server.port=0", "security.internal-service-token=test-internal"})
+        properties = {"management.server.port=0", "security.internal-service-token=test-internal",
+                "spring.datasource.url=jdbc:h2:mem:engagement-manager-user-outage;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+                "spring.datasource.username=sa", "spring.datasource.password=",
+                "subscriptions.housekeeping-initial-delay=PT24H"})
 class ManagerPageUserOutageTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final UUID MANAGER = UUID.randomUUID();

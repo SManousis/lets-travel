@@ -1,6 +1,7 @@
 package com.travelplan.engagement;
 
 import java.util.UUID;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -22,7 +23,7 @@ final class ManagerPageController {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new Error("NOT_FOUND", "Manager not found"));
     }
 
-    @ExceptionHandler(ManagerPageService.DependencyUnavailable.class)
+    @ExceptionHandler({ManagerPageService.DependencyUnavailable.class, DataAccessException.class})
     ResponseEntity<Error> unavailable() {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(new Error("DEPENDENCY_UNAVAILABLE", "Required service unavailable"));
