@@ -45,7 +45,8 @@ class StartupTest {
     void keepsManagementAndInternalApisOffApplicationListener() throws Exception {
         try (HttpClient client = HttpClient.newHttpClient()) {
             assertThat(get(client, applicationPort, "/actuator/health").statusCode()).isEqualTo(404);
-            assertThat(get(client, applicationPort, "/internal/cleanup").statusCode()).isEqualTo(404);
+            // Internal paths refuse callers without the service token before any routing.
+            assertThat(get(client, applicationPort, "/internal/cleanup").statusCode()).isEqualTo(403);
             assertThat(get(client, managementPort, "/actuator/env").statusCode()).isEqualTo(404);
         }
     }

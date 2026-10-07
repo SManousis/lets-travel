@@ -9,8 +9,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Sign-up and password setup are public, /api/me is open to every signed-in role, and the
- * user administration APIs stay ADMIN-only.
+ * Sign-up and password setup are public; /api/me and traveler profiles are open to every
+ * signed-in role (profiles with ownership checks); user administration stays ADMIN-only.
  * /internal endpoints are not routed by the gateway and check the internal service token themselves.
  */
 @Configuration
@@ -22,7 +22,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**", "/error", "/internal/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/registrations", "/api/password-setup").permitAll()
-                        .requestMatchers("/api/me").hasRole("TRAVELER")
+                        .requestMatchers("/api/me", "/api/travelers", "/api/travelers/**").hasRole("TRAVELER")
                         .requestMatchers("/api/**").hasRole("ADMIN")
                         .anyRequest().denyAll())
                 .build();
