@@ -17,6 +17,8 @@ const values = {
   STRIPE_SANDBOX_SECRET_KEY: `sk_test_sim_${randomValue()}`,
   PAYPAL_SANDBOX_CLIENT_ID: `sim_client_${randomValue()}`,
   PAYPAL_SANDBOX_CLIENT_SECRET: `sim_secret_${randomValue()}`,
+  STRIPE_WEBHOOK_SECRET: `whsec_sim_${randomValue()}`,
+  PAYMENT_TEST_WEBHOOK_SECRET: `whsec_test_${randomValue()}`,
 };
 
 const destination = resolve('.env.payment-sim');
