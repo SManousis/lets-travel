@@ -1,12 +1,14 @@
 package com.travelplan.auth;
 
 import com.travelplan.auth.security.IdentitySessionCoordinator;
+import com.travelplan.auth.security.PasswordRules;
 import com.travelplan.auth.security.ProvisionedIdentityStore;
 import com.travelplan.auth.security.TokenService;
 import com.travelplan.common.security.Role;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -47,7 +49,7 @@ public class InternalIdentityController {
                                           @RequestHeader(value = "X-Internal-Service-Token", required = false) String presented) {
         if (!trusted(presented)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         Role role = Role.parse(request.role()).orElse(null);
-        if (role == null) return ResponseEntity.badRequest().build();
+        if (role == null || !PasswordRules.fits(request.password())) return ResponseEntity.badRequest().build();
         return coordinator.execute(() -> {
             if (identities.findByUsername(request.username()) != null) return ResponseEntity.status(HttpStatus.CONFLICT).build();
             identities.provision(request.userId(), request.username(), passwords.encode(request.password()), role);
@@ -69,6 +71,19 @@ public class InternalIdentityController {
         });
     }
 
+    /** Sets a new password and ends every existing session of the identity. */
+    @PostMapping("/internal/identities/{subject}/password")
+    public ResponseEntity<Void> setPassword(@PathVariable UUID subject, @Valid @RequestBody PasswordRequest request,
+                                            @RequestHeader(value = "X-Internal-Service-Token", required = false) String presented) {
+        if (!trusted(presented)) return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!PasswordRules.fits(request.password())) return ResponseEntity.badRequest().build();
+        return coordinator.execute(() -> {
+            if (!identities.updatePassword(subject, passwords.encode(request.password()))) return ResponseEntity.notFound().build();
+            tokens.revokeSubject(subject);
+            return ResponseEntity.noContent().build();
+        });
+    }
+
     @PostMapping("/internal/revoke/{subject}")
     public ResponseEntity<Void> revoke(@PathVariable UUID subject,
                                        @RequestHeader(value = "X-Internal-Service-Token", required = false) String presented) {
@@ -85,5 +100,6 @@ public class InternalIdentityController {
     }
 
     public record ProvisionRequest(@NotNull UUID userId, @NotBlank String username, @NotBlank String password, @NotBlank String role) {}
+    public record PasswordRequest(@NotBlank @Size(min = 10, max = 72) String password) {}
     public record UpdateRequest(@NotBlank String username, @NotBlank String role, boolean enabled) {}
 }

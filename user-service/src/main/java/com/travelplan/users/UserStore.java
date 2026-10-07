@@ -57,9 +57,18 @@ public class UserStore {
     }
 
     public UserDomain.User create(String email, String first, String last, Role role) {
+        return create(email, first, last, role, null);
+    }
+
+    /**
+     * Creates the profile and its login identity. Without a password the identity gets a random,
+     * never-shown one, and the user sets a real password through a password-setup link.
+     */
+    public UserDomain.User create(String email, String first, String last, Role role, String password) {
         if (users.values().stream().anyMatch(u -> u.email().equalsIgnoreCase(email))) throw new Conflict("EMAIL_EXISTS");
         UserDomain.User user = new UserDomain.User(UUID.randomUUID(), email.toLowerCase(Locale.ROOT), first, last, role, UserDomain.Status.ACTIVE, Instant.now());
-        try { provisioning.provision(user.id(), user.email(), UUID.randomUUID().toString()+"-Initial9!", user.role().name()); } catch (RuntimeException ex) { throw new Conflict("AUTH_PROVISIONING_FAILED"); }
+        String initialPassword = password != null ? password : randomPassword();
+        try { provisioning.provision(user.id(), user.email(), initialPassword, user.role().name()); } catch (RuntimeException ex) { throw new Conflict("AUTH_PROVISIONING_FAILED"); }
         if (jdbc != null) {
             try {
                 jdbc.update("insert into users(id,email,first_name,last_name,role,status,created_at) values (?,?,?,?,?,?,?)",
@@ -253,6 +262,12 @@ public class UserStore {
     }
     public Object idempotent(String key) { return key == null || key.isBlank() ? null : idempotent.get(key); }
     public void remember(String key, Object value) { if (key != null && !key.isBlank()) idempotent.putIfAbsent(key, value); }
+    /** 32 random bytes as 43 URL-safe characters: strong, and within BCrypt's 72-byte limit. */
+    static String randomPassword() {
+        byte[] bytes = new byte[32];
+        new java.security.SecureRandom().nextBytes(bytes);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
     public static class NotFound extends RuntimeException {}
     public static class Conflict extends RuntimeException { public final String code; public Conflict(String code) { this.code = code; } }
 }

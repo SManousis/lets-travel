@@ -13,7 +13,7 @@ spring:
             - id: users
               uri: ${services.users.url}
               predicates:
-                - Path=/api/users,/api/users/**,/api/travelers,/api/travelers/**
+                - Path=/api/users,/api/users/**,/api/travelers,/api/travelers/**,/api/me,/api/registrations,/api/password-setup
             - id: travel
               uri: ${services.travel.url}
               predicates:

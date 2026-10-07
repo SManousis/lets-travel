@@ -32,7 +32,7 @@ import reactor.netty.http.client.HttpClient;
 @Configuration
 public class GatewaySecurityConfig {
     /** Paths that need no token. */
-    static final List<String> PUBLIC_PATHS = List.of("/api/auth/login", "/api/auth/refresh");
+    static final List<String> PUBLIC_PATHS = List.of("/api/auth/login", "/api/auth/refresh", "/api/registrations", "/api/password-setup");
 
     /** Minimum role per path prefix, first match wins; other /api paths need any signed-in role. */
     static final List<Rule> RULES = List.of(
