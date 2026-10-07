@@ -27,7 +27,15 @@ class AuthorizationMatrixTest {
     private static final HttpServer AUTH = AuthorizationMatrix.activeSessionsAuthServer();
 
     static final List<Endpoint> MATRIX = List.of(
-            endpoint("GET", "/api/managers/{managerId}", Access.TRAVELER)
+            endpoint("GET", "/api/managers/{managerId}", Access.TRAVELER),
+            endpoint("POST", "/api/subscriptions", Access.TRAVELER),
+            endpoint("GET", "/api/subscriptions", Access.TRAVELER),
+            endpoint("GET", "/api/subscriptions/{subscriptionId}", Access.TRAVELER),
+            endpoint("POST", "/api/subscriptions/{subscriptionId}/cancellation", Access.TRAVELER),
+            endpoint("GET", "/api/managed-travels/{travelId}/subscribers", Access.TRAVEL_MANAGER),
+            endpoint("POST", "/api/managed-travels/{travelId}/subscribers/{subscriptionId}/removal", Access.TRAVEL_MANAGER),
+            endpoint("GET", "/internal/subscriptions/{subscriptionId}", Access.INTERNAL),
+            endpoint("POST", "/internal/subscriptions/{subscriptionId}/payment-outcome", Access.INTERNAL)
     );
 
     @Autowired ApplicationContext context;

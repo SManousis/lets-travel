@@ -11,12 +11,20 @@ auth:
 services:
   user:
     url: ${USER_SERVICE_URL:http://127.0.0.1:8082}
+  engagement:
+    url: ${ENGAGEMENT_SERVICE_URL:http://127.0.0.1:8085}
+# Secrets are read from the environment (Vault / deployment secrets). Never commit real values.
 payments:
   simulation:
     enabled: ${PAYMENT_SIMULATION_ENABLED:false}
     base-url: ${PAYMENT_SIMULATOR_BASE_URL:}
+  # Built-in TEST provider for demos without provider accounts (docs/payments.md). Off by default.
+  test-provider:
+    enabled: ${PAYMENT_TEST_PROVIDER_ENABLED:false}
+    webhook-secret: ${PAYMENT_TEST_WEBHOOK_SECRET:}
   stripe:
     secret-key: ${STRIPE_SANDBOX_SECRET_KEY:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
   paypal:
     client-id: ${PAYPAL_SANDBOX_CLIENT_ID:}
     client-secret: ${PAYPAL_SANDBOX_CLIENT_SECRET:}

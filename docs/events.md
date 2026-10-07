@@ -55,7 +55,7 @@ Rules for payloads:
 | Producer | Event | Main consumers |
 | --- | --- | --- |
 | travel-service | `TravelPublished`, `TravelUpdated`, `TravelUnpublished`, `TravelDeleted` | search-service (index), engagement-service (price, dates, capacity and manager snapshot) |
-| engagement-service | `SubscriptionReserved`, `SubscriptionConfirmed`, `SubscriptionCancelled`, `SubscriptionCompleted` | travel-service (participation graph), search-service (remaining places) |
+| engagement-service | `SubscriptionReserved`, `SubscriptionConfirmed`, `SubscriptionPaymentFailed`, `SubscriptionCancelled`, `SubscriptionCompleted` (Phase 3, see [subscriptions](subscriptions.md)) | payment-service, travel-service (recommendation data), search-service (remaining places), dashboards |
 | engagement-service | `FeedbackSubmitted` | travel-service (recommendation weights), search-service (average rating) |
 | engagement-service | `ReportFiled`, `ReportResolved` | none yet (moderation stays inside engagement) |
 | payment-service | `SubscriptionPaymentSucceeded`, `SubscriptionPaymentFailed`, `SubscriptionPaymentRefunded` | engagement-service (confirm or release the place, income figures) |
@@ -177,9 +177,11 @@ Any projection can be rebuilt without downtime:
 Events cover keeping copies in step. A few steps still call another service
 directly, because the caller needs the answer right away:
 
-- **Subscribing** reads the travel's current status and capacity from
-  engagement-service's own snapshot of travel events, not from travel-service, so
-  it works while travel-service is down.
+- **Subscribing** reserves the place in travel-service, which owns capacity, through
+  its private reservation endpoint (one atomic Neo4j transaction, see
+  [subscriptions](subscriptions.md)). If travel-service is down, subscribing fails
+  with `503` and nothing is reserved. Cancelling commits first and releases the
+  place afterwards, retrying until travel-service confirms.
 - **Paying** sends the subscription ID to payment-service; payment-service asks
   engagement-service (internal, machine token) to confirm the subscription is
   `PENDING_PAYMENT` and belongs to the caller before charging.

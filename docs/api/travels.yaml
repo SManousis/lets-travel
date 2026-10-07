@@ -770,7 +770,12 @@ components:
           minimum: 0
         bookable:
           type: boolean
-          description: PUBLISHED, start date after today and remaining capacity above zero.
+          description: PUBLISHED, start date after today (in the travel's time zone) and remaining capacity above zero.
+        timeZone:
+          type: string
+          example: Europe/Athens
+          description: IANA zone of the travel's calendar dates. The subscription cancellation cutoff
+            (start date minus 3 days) is judged in this zone. Travels created before Phase 3 use UTC.
         createdAt:
           type: string
           format: date-time
@@ -797,6 +802,7 @@ components:
       - participantCount
       - remainingCapacity
       - bookable
+      - timeZone
       - createdAt
       - updatedAt
     TravelPage:
@@ -884,6 +890,13 @@ components:
           items:
             $ref: '#/components/schemas/TransportWrite'
           description: May be empty but must be present.
+        timeZone:
+          type: string
+          maxLength: 64
+          nullable: true
+          example: Europe/Athens
+          description: IANA zone id; defaults to UTC on create and keeps the current zone on update.
+            Rejected with 409 `INVALID_TIME_ZONE` when unknown.
       required:
       - name
       - description
@@ -897,4 +910,6 @@ components:
       - accommodations
       - transports
       description: All stop, activity, accommodation and transport dates must fall inside startDate..endDate. Component ids
-        are server-generated.
+        are server-generated. Once places are reserved, startDate, endDate, timeZone, price and currency
+        are fixed (409 `TRAVEL_HAS_SUBSCRIBERS`) because subscriptions hold a snapshot of them; name,
+        description, itinerary details and a capacity that still fits every participant may change.

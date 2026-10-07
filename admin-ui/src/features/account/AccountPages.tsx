@@ -80,6 +80,6 @@ export function AccountHome({ me }: { me: Me }) {
       <dt>Role</dt><dd>{roleLabel(me.role)}</dd>
       {me.memberSince && <><dt>Member since</dt><dd>{new Date(me.memberSince).toLocaleDateString()}</dd></>}
     </dl>
-    <p>Search, bookings and {me.role === "TRAVEL_MANAGER" ? "your travel management tools" : "recommendations"} will appear here soon.</p>
+    <p>Search and recommendations will appear here soon.</p>
   </section>;
 }

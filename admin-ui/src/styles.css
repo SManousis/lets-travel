@@ -158,3 +158,11 @@ footer { display: flex; justify-content: space-between; gap: 15px; padding: 30px
 .account-details { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0 0 16px; }
 .account-details dt { color: var(--muted); }
 .account-details dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Subscription payment */
+.payment-panel { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.payment-choices { display: grid; gap: 8px; margin: 0 0 12px; border: 0; padding: 0; }
+.payment-choices legend { margin-bottom: 6px; font-weight: 700; }
+.payment-choices label { display: flex; align-items: center; gap: 8px; }
+.payment-choices input[type="radio"] { width: auto; }
+.payment-choices select { max-width: 260px; }

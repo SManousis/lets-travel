@@ -31,8 +31,9 @@ import reactor.netty.http.client.HttpClient;
  */
 @Configuration
 public class GatewaySecurityConfig {
-    /** Paths that need no token. */
-    static final List<String> PUBLIC_PATHS = List.of("/api/auth/login", "/api/auth/refresh", "/api/registrations", "/api/password-setup");
+    /** Paths that need no token. Provider webhooks are trusted only through their verified signature (payment-service). */
+    static final List<String> PUBLIC_PATHS = List.of("/api/auth/login", "/api/auth/refresh", "/api/registrations", "/api/password-setup",
+            "/api/payment-webhooks/stripe", "/api/payment-webhooks/test");
 
     /** Minimum role per (optional method and) path prefix, first match wins; other /api paths need any signed-in role. */
     static final List<Rule> RULES = List.of(
@@ -41,8 +42,12 @@ public class GatewaySecurityConfig {
             new Rule("/api/travelers", Role.TRAVELER),
             new Rule("/api/travels", Role.TRAVELER),
             new Rule("/api/managers", Role.TRAVELER),
+            new Rule("/api/subscriptions", Role.TRAVELER),
+            new Rule("/api/managed-travels", Role.TRAVEL_MANAGER),
             new Rule("GET", "/api/destinations", Role.TRAVELER),
             new Rule("/api/destinations", Role.ADMIN),
+            new Rule("/api/subscription-payments", Role.TRAVELER),
+            new Rule("/api/payment-options", Role.TRAVELER),
             new Rule("/api/payment-methods", Role.ADMIN),
             new Rule("/api/payment-gateways", Role.ADMIN));
 

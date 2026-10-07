@@ -52,6 +52,23 @@ final class UserInternalController {
         }
     }
 
+    /**
+     * The minimum engagement-service needs about a subscriber: whether they may book, and a safe
+     * public summary for the travel's manager. No email, passport or other contact details.
+     */
+    @GetMapping("/internal/users/{id}/summary")
+    ResponseEntity<UserSummary> summary(@PathVariable UUID id,
+            @RequestHeader(value = "X-Internal-Service-Token", required = false) String presented) {
+        if (!authorized(presented)) return ResponseEntity.status(403).build();
+        try {
+            UserDomain.User user = store.get(id);
+            return ResponseEntity.ok(new UserSummary(user.id(), displayName(user), user.createdAt(),
+                    user.status() == UserDomain.Status.ACTIVE));
+        } catch (UserStore.NotFound ex) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     private boolean authorized(String presented) {
         return presented != null
                 && MessageDigest.isEqual(serviceToken, presented.getBytes(StandardCharsets.UTF_8));
@@ -62,6 +79,7 @@ final class UserInternalController {
     }
 
     record ManagerSummary(UUID managerId, String displayName, Instant memberSince) {}
+    record UserSummary(UUID userId, String displayName, Instant memberSince, boolean active) {}
 
     @ExceptionHandler(DataAccessException.class)
     ResponseEntity<Void> unavailable() { return ResponseEntity.status(503).build(); }

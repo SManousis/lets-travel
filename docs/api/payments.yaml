@@ -3,7 +3,8 @@ openapi: 3.0.3
 info:
   title: Payment methods and gateways API
   version: 0.1.0
-  description: 'Target contract. The current synchronous implementation and its response
+  description: 'Subscription payments (Phase 4) are implemented as documented here
+    and in docs/payments.md. Target contract for gateways and saved methods. The current synchronous implementation and its response
     differences are documented in docs/payments.md. Local active-user validation is
     implemented; provider-customer ownership is not proven because no trusted binding
     to a local user exists. Local default selection is implemented with the current
@@ -434,8 +435,198 @@ paths:
       - "$ref": "#/components/parameters/IdempotencyKey"
       description: Resumes the same operation from its last acknowledged step. Returns
         409 unless FAILED and retryable, except an identical idempotent replay.
+  "/api/subscription-payments":
+    post:
+      operationId: payForSubscription
+      summary: Pay for the caller's own PENDING_PAYMENT subscription
+      x-required-role: TRAVELER
+      security:
+      - travelerBearer: []
+      description: 'Pays with exactly one of `paymentMethodId` (the caller''s own ACTIVE
+        saved method, Stripe or PayPal) or `testOutcome` (the built-in TEST provider,
+        only when `payments.test-provider.enabled`). The amount and currency come from
+        engagement-service''s price snapshot, never from the request. The payment is
+        persisted as `PROCESSING` before the provider call. A lost or ambiguous provider
+        answer gives `REQUIRES_RECONCILIATION`; reconciliation replays the same provider
+        idempotency key, so a second charge is impossible. A subscription has at most one
+        payment. A replay with the same `Idempotency-Key` and body returns the first
+        payment with `200`. Another user''s subscription or saved method returns `404`,
+        the same as an unknown one. Conflict codes: `PAYMENT_ALREADY_EXISTS`,
+        `IDEMPOTENCY_KEY_REUSED`, `SUBSCRIPTION_NOT_PAYABLE` (expired or no longer pending),
+        `METHOD_NOT_ACTIVE`, `NOTHING_TO_PAY`. `503 PROVIDER_NOT_CONFIGURED` or
+        `DEPENDENCY_UNAVAILABLE` means nothing was charged.'
+      parameters:
+      - "$ref": "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/SubscriptionPaymentCreate"
+      responses:
+        '200':
+          description: Replay of an earlier request with the same key; its current state.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SubscriptionPayment"
+        '201':
+          description: Payment recorded. `state` tells the outcome (SUCCEEDED, FAILED or
+            REQUIRES_RECONCILIATION); `message` is safe to show to the traveler.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SubscriptionPayment"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '409':
+          "$ref": "#/components/responses/Conflict"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+    get:
+      operationId: listMySubscriptionPayments
+      summary: List the caller's own subscription payments
+      x-required-role: TRAVELER
+      security:
+      - travelerBearer: []
+      description: Newest first. Used to show payment and refund state next to each subscription.
+      responses:
+        '200':
+          description: The caller's payments.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/SubscriptionPayment"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/subscription-payments/{paymentId}":
+    get:
+      operationId: getSubscriptionPayment
+      summary: Read one payment (owner or ADMIN)
+      x-required-role: TRAVELER
+      security:
+      - travelerBearer: []
+      description: Anyone other than the owner or an ADMIN receives `404`.
+      parameters:
+      - name: paymentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: The payment.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/SubscriptionPayment"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/payment-options":
+    get:
+      operationId: listPaymentOptions
+      summary: What the caller can pay with
+      x-required-role: TRAVELER
+      security:
+      - travelerBearer: []
+      description: The caller's own ACTIVE saved methods (safe display data only, no
+        provider references) and whether the TEST provider is offered.
+      responses:
+        '200':
+          description: Payment options.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PaymentOptions"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
+  "/api/payment-webhooks/{provider}":
+    post:
+      operationId: receivePaymentWebhook
+      summary: Signed provider callback (Stripe or the TEST provider)
+      x-required-role: PUBLIC
+      security: []
+      description: 'No bearer token: trust comes only from the signature header
+        (`Stripe-Signature` for `stripe`, `Test-Signature` for `test`), formatted
+        `t=<unix seconds>,v1=<hex HMAC-SHA256(secret, t + "." + raw body)>`. A wrong,
+        missing or older-than-five-minutes signature returns `400 INVALID_SIGNATURE`.
+        A provider without a configured webhook secret returns `404`. Handles
+        `payment_intent.succeeded` and `payment_intent.payment_failed`; the event only
+        resolves a payment whose outcome is still unknown and whose amount and currency
+        match. Other or repeated events return `200` and change nothing.'
+      parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - stripe
+          - test
+      - name: Stripe-Signature
+        in: header
+        required: false
+        schema:
+          type: string
+      - name: Test-Signature
+        in: header
+        required: false
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/PaymentWebhookEvent"
+      responses:
+        '200':
+          description: Event received (and applied when it resolves a payment).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  received:
+                    type: boolean
+                required:
+                - received
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '404':
+          "$ref": "#/components/responses/NotFound"
 components:
   securitySchemes:
+    travelerBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Any signed-in role (TRAVELER and above). Ownership is checked in
+        the service.
     adminBearer:
       type: http
       scheme: bearer
@@ -860,3 +1051,162 @@ components:
       - size
       - totalElements
       - totalPages
+    SubscriptionPaymentCreate:
+      type: object
+      additionalProperties: false
+      description: Exactly one of `paymentMethodId` or `testOutcome`. No card data is ever sent.
+      properties:
+        subscriptionId:
+          type: string
+          format: uuid
+        paymentMethodId:
+          type: string
+          format: uuid
+          description: One of the caller's own ACTIVE saved methods.
+        testOutcome:
+          type: string
+          enum:
+          - APPROVE
+          - DECLINE
+          - TIMEOUT
+          description: TEST provider scenario. TIMEOUT records the charge but loses
+            the first answer, then reconciliation confirms it.
+      required:
+      - subscriptionId
+    SubscriptionPayment:
+      type: object
+      additionalProperties: false
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        subscriptionId:
+          type: string
+          format: uuid
+        amountMinor:
+          type: integer
+          format: int64
+          minimum: 1
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        provider:
+          type: string
+          enum:
+          - STRIPE
+          - PAYPAL
+          - TEST
+        methodDisplay:
+          type: string
+          example: visa •••• 4242
+        state:
+          type: string
+          enum:
+          - PROCESSING
+          - REQUIRES_RECONCILIATION
+          - SUCCEEDED
+          - FAILED
+          - REFUND_PENDING
+          - REFUNDED
+        failureCode:
+          type: string
+          nullable: true
+          example: PAYMENT_DECLINED
+        message:
+          type: string
+          description: Safe, actionable text for the traveler; never a provider's own message.
+        refundReason:
+          type: string
+          nullable: true
+          enum:
+          - SUBSCRIPTION_CANCELLED
+          - SUBSCRIPTION_NOT_PAYABLE
+          -
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+      - paymentId
+      - subscriptionId
+      - amountMinor
+      - currency
+      - provider
+      - methodDisplay
+      - state
+      - failureCode
+      - message
+      - refundReason
+      - createdAt
+      - updatedAt
+    PaymentOptions:
+      type: object
+      additionalProperties: false
+      properties:
+        methods:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              id:
+                type: string
+                format: uuid
+              provider:
+                type: string
+                enum:
+                - STRIPE
+                - PAYPAL
+              displayLabel:
+                type: string
+              displayMetadata:
+                type: string
+                nullable: true
+              isDefault:
+                type: boolean
+              available:
+                type: boolean
+                description: False when the provider's credentials are not configured.
+            required:
+            - id
+            - provider
+            - displayLabel
+            - displayMetadata
+            - isDefault
+            - available
+        testProviderEnabled:
+          type: boolean
+      required:
+      - methods
+      - testProviderEnabled
+    PaymentWebhookEvent:
+      type: object
+      description: Stripe event shape; the TEST provider uses the same shape.
+      properties:
+        type:
+          type: string
+          example: payment_intent.succeeded
+        data:
+          type: object
+          properties:
+            object:
+              type: object
+              properties:
+                id:
+                  type: string
+                amount:
+                  type: integer
+                  format: int64
+                currency:
+                  type: string
+                metadata:
+                  type: object
+                  properties:
+                    payment_id:
+                      type: string
+                      format: uuid
+      required:
+      - type
+      - data

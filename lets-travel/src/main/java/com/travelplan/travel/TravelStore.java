@@ -118,10 +118,18 @@ public class TravelStore {
     public Travel create(UUID managerId, String name, String description, LocalDate start, LocalDate end,
                          int capacity, BigDecimal price, String currency, List<Stop> stops,
                          List<Activity> activities, List<Accommodation> stays, List<Transport> transports) {
+        return create(managerId, name, description, start, end, capacity, price, currency, stops, activities, stays,
+                transports, null);
+    }
+
+    public Travel create(UUID managerId, String name, String description, LocalDate start, LocalDate end,
+                         int capacity, BigDecimal price, String currency, List<Stop> stops,
+                         List<Activity> activities, List<Accommodation> stays, List<Transport> transports,
+                         String timeZone) {
         Instant now = clock.instant();
         Travel result = new Travel(UUID.randomUUID(), managerId, name, description, start, end,
                 safeDuration(start, end), capacity, price, currency, Status.DRAFT, 1, orderedStops(stops),
-                copy(activities), copy(stays), copy(transports), Set.of(), now, now);
+                copy(activities), copy(stays), copy(transports), Set.of(), now, now, timeZone);
         validateDestinations(result.stops());
         policy.validateDraft(result);
         if (graph != null) return graph.save(result);
@@ -144,14 +152,31 @@ public class TravelStore {
                                       int capacity, BigDecimal price, String currency, List<Stop> stops,
                                       List<Activity> activities, List<Accommodation> stays,
                                       List<Transport> transports) {
+        return update(id, name, description, start, end, capacity, price, currency, stops, activities, stays,
+                transports, null);
+    }
+
+    /**
+     * Once places are taken, subscriptions hold a snapshot of the dates, time zone and price, so
+     * those are fixed (TRAVEL_HAS_SUBSCRIBERS). Name, description, itinerary details and a capacity
+     * that still fits every participant may change; the TravelUpdated event tells subscribers.
+     * A null time zone keeps the current one.
+     */
+    public synchronized Travel update(UUID id, String name, String description, LocalDate start, LocalDate end,
+                                      int capacity, BigDecimal price, String currency, List<Stop> stops,
+                                      List<Activity> activities, List<Accommodation> stays,
+                                      List<Transport> transports, String timeZone) {
         Travel old = travel(id);
+        String zone = timeZone == null ? old.timeZone() : timeZone;
         if (old.status() == Status.CANCELLED) throw new Conflict("TRAVEL_NOT_EDITABLE");
         if (capacity < old.travelerIds().size()) throw new Conflict("CAPACITY_BELOW_PARTICIPANTS");
-        if (!old.travelerIds().isEmpty() && start != null && start.isBefore(old.startDate()))
-            throw new Conflict("TRAVEL_NOT_EDITABLE");
+        if (!old.travelerIds().isEmpty() && (!Objects.equals(start, old.startDate())
+                || !Objects.equals(end, old.endDate()) || price == null || old.price().compareTo(price) != 0
+                || !old.currency().equalsIgnoreCase(String.valueOf(currency)) || !old.timeZone().equals(zone)))
+            throw new Conflict("TRAVEL_HAS_SUBSCRIBERS");
         Travel result = new Travel(id, old.managerId(), name, description, start, end, safeDuration(start, end),
                 capacity, price, currency, old.status(), old.version() + 1, orderedStops(stops), copy(activities),
-                copy(stays), copy(transports), old.travelerIds(), old.createdAt(), clock.instant());
+                copy(stays), copy(transports), old.travelerIds(), old.createdAt(), clock.instant(), zone);
         validateDestinations(result.stops());
         policy.validateDraft(result);
         if (graph != null) return graph.update(result);
@@ -198,6 +223,39 @@ public class TravelStore {
         travels.put(id, withTravelers(old, ids));
     }
 
+    /**
+     * Atomically takes one place for a subscription (see Neo4jTravelRepository#reserve). Fails with
+     * TRAVEL_NOT_BOOKABLE, TRAVEL_FULL or TRAVELER_REMOVED; repeating it for the same traveler is a no-op.
+     */
+    public Travel reserveSeat(UUID id, UUID traveler) {
+        // Not synchronized on the graph path: Neo4j's lock on the travel node is what serializes callers.
+        if (graph != null) return graph.reserve(id, traveler, travel -> policy.reservationProblem(travel, traveler));
+        return reserveInMemory(id, traveler);
+    }
+
+    private synchronized Travel reserveInMemory(UUID id, UUID traveler) {
+        if (removedTravelerIds.contains(traveler)) throw new Conflict("TRAVELER_REMOVED");
+        Travel old = travel(id);
+        String problem = policy.reservationProblem(old, traveler);
+        if (problem != null) throw new Conflict(problem);
+        Set<UUID> ids = new HashSet<>(old.travelerIds());
+        ids.add(traveler);
+        Travel result = withTravelers(old, ids);
+        travels.put(id, result);
+        return result;
+    }
+
+    /** Gives a place back; releasing a place that is not held, or on a deleted travel, does nothing. */
+    public void releaseSeat(UUID id, UUID traveler) {
+        try {
+            removeParticipant(id, traveler);
+        } catch (NotFound ignored) {
+            // Nothing is held on a travel that no longer exists.
+        }
+    }
+
+    public LocalDate today(Travel travel) { return policy.today(travel); }
+
     public synchronized void removeParticipants(Set<UUID> travelerIds) {
         if (travelerIds.isEmpty()) return;
         if (graph != null) { graph.removeParticipants(travelerIds); return; }
@@ -217,15 +275,14 @@ public class TravelStore {
     }
 
     private static Travel withTravelers(Travel old, Set<UUID> ids) {
-        return new Travel(old.id(), old.managerId(), old.name(), old.description(), old.startDate(), old.endDate(),
-                old.durationDays(), old.capacity(), old.price(), old.currency(), old.status(), old.version(), old.stops(),
-                old.activities(), old.accommodations(), old.transports(), Set.copyOf(ids), old.createdAt(), old.updatedAt());
+        return old.withTravelers(Set.copyOf(ids));
     }
 
     private Travel withLifecycle(Travel old, Status status) {
         return new Travel(old.id(), old.managerId(), old.name(), old.description(), old.startDate(), old.endDate(),
                 old.durationDays(), old.capacity(), old.price(), old.currency(), status, old.version() + 1, old.stops(),
-                old.activities(), old.accommodations(), old.transports(), old.travelerIds(), old.createdAt(), clock.instant());
+                old.activities(), old.accommodations(), old.transports(), old.travelerIds(), old.createdAt(), clock.instant(),
+                old.timeZone());
     }
 
     private static List<Stop> orderedStops(List<Stop> stops) {

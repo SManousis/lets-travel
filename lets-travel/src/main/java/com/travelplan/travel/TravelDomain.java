@@ -38,7 +38,11 @@ public final class TravelDomain {
             List<Transport> transports,
             Set<UUID> travelerIds,
             Instant createdAt,
-            Instant updatedAt) {
+            Instant updatedAt,
+            String timeZone) {
+
+        /** Calendar zone of the travel's dates; the cancellation cutoff and "has started" use it. */
+        public static final String DEFAULT_TIME_ZONE = "UTC";
 
         public Travel {
             stops = stops == null ? null : List.copyOf(stops);
@@ -47,6 +51,24 @@ public final class TravelDomain {
             transports = transports == null ? null : List.copyOf(transports);
             travelerIds = travelerIds == null ? null : Set.copyOf(travelerIds);
             currency = currency == null ? null : currency.toUpperCase(Locale.ROOT);
+            timeZone = timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone;
+        }
+
+        /** Travels created before time zones existed use UTC. */
+        public Travel(UUID id, UUID managerId, String name, String description, LocalDate startDate,
+                      LocalDate endDate, long durationDays, int capacity, BigDecimal price, String currency,
+                      Status status, long version, List<Stop> stops, List<Activity> activities,
+                      List<Accommodation> accommodations, List<Transport> transports, Set<UUID> travelerIds,
+                      Instant createdAt, Instant updatedAt) {
+            this(id, managerId, name, description, startDate, endDate, durationDays, capacity, price, currency,
+                    status, version, stops, activities, accommodations, transports, travelerIds, createdAt, updatedAt,
+                    DEFAULT_TIME_ZONE);
+        }
+
+        public Travel withTravelers(Set<UUID> ids) {
+            return new Travel(id, managerId, name, description, startDate, endDate, durationDays, capacity, price,
+                    currency, status, version, stops, activities, accommodations, transports, ids, createdAt,
+                    updatedAt, timeZone);
         }
 
         /** Compatibility constructor for inherited records until their Phase 2 migration runs. */
@@ -55,7 +77,7 @@ public final class TravelDomain {
                       List<Transport> transports, Set<UUID> travelerIds, Instant createdAt) {
             this(id, null, name, "", startDate, endDate, durationDays, Integer.MAX_VALUE, BigDecimal.ZERO,
                     "EUR", Status.DRAFT, 1, stops, activities, accommodations, transports, travelerIds,
-                    createdAt, createdAt);
+                    createdAt, createdAt, DEFAULT_TIME_ZONE);
         }
     }
 }

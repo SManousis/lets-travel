@@ -4,13 +4,16 @@ import { AccountHome, RegisterPage, SetPasswordPage, roleLabel } from "./feature
 import { UsersPanel } from "./features/users/UsersPanel";
 import { TravelsPanel } from "./features/travels/TravelsPanel";
 import { PaymentsPanel } from "./features/payments/PaymentsPanel";
+import { TravelerTrips } from "./features/subscriptions/TravelerTrips";
+import { SubscriberManager } from "./features/subscriptions/SubscriberManager";
 
-type Section = "users" | "travels" | "payments";
+type Section = "users" | "travels" | "subscriptions" | "payments";
 type Session = { token: string; expiresAt: number };
 
 const sections: { id: Section; label: string }[] = [
   { id: "users", label: "Users and travelers" },
   { id: "travels", label: "Travels and itineraries" },
+  { id: "subscriptions", label: "Subscribers" },
   { id: "payments", label: "Payments and gateways" },
 ];
 
@@ -144,7 +147,9 @@ function App() {
       <div className="header-actions"><span className="phase-label">{roleLabel(me.role)}</span>
         <button type="button" onClick={() => void signOut()} disabled={busy}>Sign out</button></div>
     </header>
-    {me.role !== "ADMIN" ? <main id="main-content"><AccountHome me={me} /></main> : <main id="main-content">
+    {me.role !== "ADMIN" ? <main id="main-content"><AccountHome me={me} />
+      {me.role === "TRAVEL_MANAGER" && <SubscriberManager context={context} />}
+      <TravelerTrips context={context} /></main> : <main id="main-content">
       <div className="workspace-intro"><p className="eyebrow">Operations</p><h1>Plan and manage every journey.</h1>
         <p>Choose an area to work with live records from the administration services.</p></div>
       <nav aria-label="Admin sections" className="section-nav">
@@ -153,6 +158,7 @@ function App() {
       </nav>
       {visited.includes("users") && <div hidden={section !== "users"}><UsersPanel context={context} active={section === "users"} /></div>}
       {visited.includes("travels") && <div hidden={section !== "travels"}><TravelsPanel context={context} active={section === "travels"} /></div>}
+      {visited.includes("subscriptions") && <div hidden={section !== "subscriptions"}><SubscriberManager context={context} /></div>}
       {visited.includes("payments") && <div hidden={section !== "payments"}><PaymentsPanel context={context} active={section === "payments"} /></div>}
     </main>}
     <footer><span>Travel Plan</span><span>Operations administration</span></footer>

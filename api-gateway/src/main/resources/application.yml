@@ -21,11 +21,11 @@ spring:
             - id: engagement
               uri: ${services.engagement.url}
               predicates:
-                - Path=/api/managers,/api/managers/**
+                - Path=/api/managers,/api/managers/**,/api/subscriptions,/api/subscriptions/**,/api/managed-travels,/api/managed-travels/**
             - id: payments
               uri: ${services.payments.url}
               predicates:
-                - Path=/api/payment-methods,/api/payment-methods/**,/api/payment-gateways,/api/payment-gateways/**
+                - Path=/api/payment-methods,/api/payment-methods/**,/api/payment-gateways,/api/payment-gateways/**,/api/subscription-payments,/api/subscription-payments/**,/api/payment-options,/api/payment-webhooks/stripe,/api/payment-webhooks/test
 services:
   auth:
     url: ${AUTH_SERVICE_URL:http://127.0.0.1:8081}

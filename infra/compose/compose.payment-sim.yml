@@ -22,6 +22,8 @@ services:
     environment:
       PAYMENT_SIMULATION_ENABLED: "true"
       PAYMENT_SIMULATOR_BASE_URL: http://payment-simulator:8085
+      # Shows the "Test card (simulation)" option to travelers; see docs/payments.md.
+      PAYMENT_TEST_PROVIDER_ENABLED: "true"
     depends_on:
       payment-simulator: { condition: service_healthy }
 

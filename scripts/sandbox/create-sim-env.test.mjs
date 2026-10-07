@@ -18,6 +18,8 @@ test('generator writes synthetic credentials and refuses to overwrite them', () 
     assert.match(values.STRIPE_SANDBOX_SECRET_KEY, /^sk_test_sim_[a-f0-9]{32,}$/);
     assert.match(values.PAYPAL_SANDBOX_CLIENT_ID, /^sim_client_[a-f0-9]{32,}$/);
     assert.match(values.PAYPAL_SANDBOX_CLIENT_SECRET, /^sim_secret_[a-f0-9]{32,}$/);
+    assert.match(values.STRIPE_WEBHOOK_SECRET, /^whsec_sim_[a-f0-9]{32,}$/);
+    assert.match(values.PAYMENT_TEST_WEBHOOK_SECRET, /^whsec_test_[a-f0-9]{32,}$/);
     assert.ok(values.AUTH_TOKEN_SECRET.length >= 32);
     assert.notEqual(values.PAYPAL_SANDBOX_CLIENT_ID, values.PAYPAL_SANDBOX_CLIENT_SECRET);
 

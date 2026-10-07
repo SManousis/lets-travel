@@ -2,11 +2,14 @@ package com.travelplan.payments;
 
 import java.net.URI;
 import java.net.http.HttpRequest;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
-public final class StripeAdapter implements ProviderAdapter {
+public final class StripeAdapter implements ProviderAdapter, ChargeProvider {
     private static final String REAL_BASE = "https://api.stripe.com";
     private final String secretKey;
     private final String baseUrl;
@@ -60,11 +63,87 @@ public final class StripeAdapter implements ProviderAdapter {
         SandboxHttp.requireSuccess(detached.statusCode());
     }
 
+    @Override public boolean configured() {
+        return secretKey != null && !secretKey.isBlank()
+                && (simulated ? secretKey.startsWith("sk_test_sim_")
+                : secretKey.startsWith("sk_test_") && !secretKey.startsWith("sk_test_sim_"));
+    }
+
+    /**
+     * Off-session PaymentIntent for the saved PaymentMethod, confirmed immediately. The Idempotency-Key
+     * header makes Stripe return the first result for a replay, so reconciliation cannot charge twice.
+     * See https://docs.stripe.com/api/payment_intents/create and https://docs.stripe.com/api/idempotent_requests.
+     */
+    @Override public ChargeResult charge(ChargeRequest request) {
+        String key = credential();
+        try {
+            validateReference(request.methodReference());
+        } catch (Rejected invalid) {
+            return ChargeResult.declined("PAYMENT_METHOD_UNUSABLE");
+        }
+        var method = SandboxHttp.send(HttpRequest.newBuilder(URI.create(baseUrl + "/v1/payment_methods/" + request.methodReference()))
+                .timeout(SandboxHttp.timeout()).header("Authorization", "Bearer " + key)
+                .header("Accept", "application/json").GET().build());
+        if (SandboxHttp.ambiguous(method.statusCode())) throw new Unavailable("PROVIDER_UNAVAILABLE");
+        if (method.statusCode() != 200) return ChargeResult.declined("PAYMENT_METHOD_UNUSABLE");
+        String customer = SandboxHttp.json(method.body()).path("customer").asString();
+        if (customer == null || !customer.startsWith("cus_")) return ChargeResult.declined("PAYMENT_METHOD_UNUSABLE");
+
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("amount", Long.toString(request.amountMinor()));
+        fields.put("currency", request.currency().toLowerCase(Locale.ROOT));
+        fields.put("customer", customer);
+        fields.put("payment_method", request.methodReference());
+        fields.put("confirm", "true");
+        fields.put("off_session", "true");
+        fields.put("metadata[payment_id]", request.paymentId().toString());
+        var response = SandboxHttp.send(HttpRequest.newBuilder(URI.create(baseUrl + "/v1/payment_intents"))
+                .timeout(SandboxHttp.timeout()).header("Authorization", "Bearer " + key)
+                .header("Idempotency-Key", request.idempotencyKey())
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(SandboxHttp.form(fields))).build());
+        if (SandboxHttp.ambiguous(response.statusCode())) throw new Unavailable("PROVIDER_UNAVAILABLE");
+        if (response.statusCode() == 402) return ChargeResult.declined("PAYMENT_DECLINED");
+        if (response.statusCode() != 200) return ChargeResult.declined("PAYMENT_REJECTED");
+        var intent = SandboxHttp.json(response.body());
+        // A success is only accepted if it is about this payment, amount and currency (and not live mode).
+        if (!request.paymentId().toString().equals(intent.path("metadata").path("payment_id").asString())
+                || intent.path("amount").asLong(-1) != request.amountMinor()
+                || !request.currency().equalsIgnoreCase(intent.path("currency").asString())
+                || intent.path("livemode").asBoolean(true))
+            throw new Unavailable("PROVIDER_INVALID_RESPONSE");
+        String id = intent.path("id").asString();
+        return switch (intent.path("status").asString()) {
+            case "succeeded" -> {
+                if (id == null || !id.startsWith("pi_")) throw new Unavailable("PROVIDER_INVALID_RESPONSE");
+                yield ChargeResult.approved(id);
+            }
+            case "requires_action" -> ChargeResult.declined("AUTHENTICATION_REQUIRED");
+            case "processing" -> throw new Unavailable("PROVIDER_PENDING");
+            default -> ChargeResult.declined("PAYMENT_DECLINED");
+        };
+    }
+
+    /** Full refund of the PaymentIntent; https://docs.stripe.com/api/refunds/create. */
+    @Override public String refund(RefundRequest request) {
+        String key = credential();
+        var response = SandboxHttp.send(HttpRequest.newBuilder(URI.create(baseUrl + "/v1/refunds"))
+                .timeout(SandboxHttp.timeout()).header("Authorization", "Bearer " + key)
+                .header("Idempotency-Key", request.idempotencyKey())
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(SandboxHttp.form(Map.of(
+                        "payment_intent", request.chargeReference(),
+                        "metadata[payment_id]", request.paymentId().toString())))).build());
+        if (SandboxHttp.ambiguous(response.statusCode())) throw new Unavailable("PROVIDER_UNAVAILABLE");
+        if (response.statusCode() != 200) throw new Rejected("REFUND_REJECTED");
+        var refund = SandboxHttp.json(response.body());
+        String status = refund.path("status").asString();
+        if (!"succeeded".equals(status) && !"pending".equals(status)) throw new Rejected("REFUND_REJECTED");
+        return refund.path("id").asString();
+    }
+
     private String credential() {
-        if (secretKey == null || secretKey.isBlank()
-                || (simulated && !secretKey.startsWith("sk_test_sim_"))
-                || (!simulated && (!secretKey.startsWith("sk_test_") || secretKey.startsWith("sk_test_sim_"))))
-            throw new Unavailable("STRIPE_SANDBOX_CREDENTIAL_MISSING");
+        if (!configured()) throw new Unavailable("STRIPE_SANDBOX_CREDENTIAL_MISSING");
         return secretKey;
     }
 

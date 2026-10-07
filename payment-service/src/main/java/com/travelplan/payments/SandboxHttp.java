@@ -1,6 +1,10 @@
 package com.travelplan.payments;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -32,6 +36,21 @@ final class SandboxHttp {
         } catch (RuntimeException ex) {
             throw new ProviderAdapter.Unavailable("PROVIDER_INVALID_RESPONSE");
         }
+    }
+
+    static String write(Object value) {
+        return JSON.writeValueAsString(value);
+    }
+
+    /** application/x-www-form-urlencoded body, as Stripe expects. */
+    static String form(Map<String, String> fields) {
+        return fields.entrySet().stream().map(entry -> URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8) + "="
+                + URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8)).collect(Collectors.joining("&"));
+    }
+
+    /** Provider overload/outage or our credentials refused: no definite answer about the money. */
+    static boolean ambiguous(int status) {
+        return status == 401 || status == 403 || status == 409 || status == 429 || status >= 500;
     }
 
     static void requireSuccess(int status) {

@@ -51,7 +51,13 @@ class GatewayRoleMatrixTest {
         MATRIX.put("/api/users", Role.ADMIN);
         MATRIX.put("/api/travels", Role.TRAVELER);
         MATRIX.put("/api/managers", Role.TRAVELER);
+        MATRIX.put("/api/subscriptions", Role.TRAVELER);
+        MATRIX.put("/api/managed-travels", Role.TRAVEL_MANAGER);
         MATRIX.put("/api/destinations", Role.TRAVELER); // reads; writes are ADMIN-only, see below
+        MATRIX.put("/api/payment-webhooks/stripe", null);
+        MATRIX.put("/api/payment-webhooks/test", null);
+        MATRIX.put("/api/subscription-payments", Role.TRAVELER);
+        MATRIX.put("/api/payment-options", Role.TRAVELER);
         MATRIX.put("/api/payment-methods", Role.ADMIN);
         MATRIX.put("/api/payment-gateways", Role.ADMIN);
     }
