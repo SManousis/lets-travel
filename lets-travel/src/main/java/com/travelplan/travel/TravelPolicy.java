@@ -1,7 +1,9 @@
 package com.travelplan.travel;
 
 import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -27,6 +29,7 @@ final class TravelPolicy {
         if (travel.price() == null || travel.price().signum() < 0) throw new TravelStore.Conflict("INVALID_PRICE");
         if (travel.currency() == null || !travel.currency().matches("[A-Z]{3}"))
             throw new TravelStore.Conflict("INVALID_CURRENCY");
+        if (!validZone(travel.timeZone())) throw new TravelStore.Conflict("INVALID_TIME_ZONE");
         if (travel.stops() == null || travel.stops().isEmpty())
             throw new TravelStore.Conflict("DESTINATION_REQUIRED");
         if (travel.activities() == null || travel.accommodations() == null || travel.transports() == null)
@@ -42,15 +45,41 @@ final class TravelPolicy {
         validateDraft(travel);
         if (travel.status() == TravelDomain.Status.CANCELLED)
             throw new TravelStore.Conflict("TRAVEL_NOT_EDITABLE");
-        if (!travel.startDate().isAfter(LocalDate.now(clock))
+        if (!travel.startDate().isAfter(today(travel))
                 || travel.description() == null || travel.description().isBlank())
             throw new TravelStore.Conflict("PUBLICATION_NOT_READY");
     }
 
     boolean bookable(Travel travel) {
         return travel.status() == TravelDomain.Status.PUBLISHED
-                && travel.startDate().isAfter(LocalDate.now(clock))
+                && travel.startDate().isAfter(today(travel))
                 && remainingCapacity(travel) > 0;
+    }
+
+    /**
+     * Why a traveler cannot take a place, or null when they can. A traveler who already holds a
+     * place gets null again, so a retried reservation is a no-op instead of a second seat.
+     */
+    String reservationProblem(Travel travel, java.util.UUID travelerId) {
+        if (travel.travelerIds().contains(travelerId)) return null;
+        if (travel.status() != TravelDomain.Status.PUBLISHED || !travel.startDate().isAfter(today(travel)))
+            return "TRAVEL_NOT_BOOKABLE";
+        if (remainingCapacity(travel) == 0) return "TRAVEL_FULL";
+        return null;
+    }
+
+    /** Today in the travel's own calendar. */
+    LocalDate today(Travel travel) {
+        return LocalDate.now(clock.withZone(validZone(travel.timeZone()) ? ZoneId.of(travel.timeZone()) : ZoneId.of("UTC")));
+    }
+
+    static boolean validZone(String zone) {
+        try {
+            ZoneId.of(zone);
+            return true;
+        } catch (DateTimeException | NullPointerException ex) {
+            return false;
+        }
     }
 
     int remainingCapacity(Travel travel) {

@@ -96,7 +96,8 @@ public class TravelController {
         managers.requireActiveManager(managerId);
         TravelDomain.Travel travel = store.create(managerId, body.name(), body.description(), body.startDate(),
                 body.endDate(), body.capacity(), body.price(), body.currency(), stops(body.stops()),
-                activities(body.activities()), accommodations(body.accommodations()), transports(body.transports()));
+                activities(body.activities()), accommodations(body.accommodations()), transports(body.transports()),
+                body.timeZone());
         return ResponseEntity.status(HttpStatus.CREATED).body(view(travel));
     }
 
@@ -111,7 +112,7 @@ public class TravelController {
         authorized(id, access, true);
         return view(store.update(id, body.name(), body.description(), body.startDate(), body.endDate(),
                 body.capacity(), body.price(), body.currency(), stops(body.stops()), activities(body.activities()),
-                accommodations(body.accommodations()), transports(body.transports())));
+                accommodations(body.accommodations()), transports(body.transports()), body.timeZone()));
     }
 
     @DeleteMapping("/api/travels/{id}")
@@ -157,7 +158,7 @@ public class TravelController {
                 travel.endDate(), travel.durationDays(), travel.capacity(), travel.price(), travel.currency(),
                 travel.status(), travel.version(), travel.stops(), travel.activities(), travel.accommodations(),
                 travel.transports(), travel.travelerIds().size(), store.remainingCapacity(travel), store.bookable(travel),
-                travel.createdAt(), travel.updatedAt());
+                travel.timeZone(), travel.createdAt(), travel.updatedAt());
     }
 
     @ExceptionHandler(TravelStore.NotFound.class)
@@ -222,7 +223,7 @@ public class TravelController {
                       TravelDomain.Status status, long version, List<TravelDomain.Stop> stops,
                       List<TravelDomain.Activity> activities, List<TravelDomain.Accommodation> accommodations,
                       List<TravelDomain.Transport> transports, int participantCount, int remainingCapacity,
-                      boolean bookable, Instant createdAt, Instant updatedAt) {}
+                      boolean bookable, String timeZone, Instant createdAt, Instant updatedAt) {}
     record DestinationWrite(@NotBlank String name, @NotBlank String country) {}
     record TravelWrite(UUID managerId, @NotBlank String name, @NotBlank @Size(max = 4000) String description,
                        @NotNull LocalDate startDate, @NotNull LocalDate endDate, @Min(1) int capacity,
@@ -230,7 +231,8 @@ public class TravelController {
                        @NotBlank @jakarta.validation.constraints.Pattern(regexp = "[A-Za-z]{3}") String currency,
                        @NotEmpty List<@Valid StopWrite> stops, @NotNull List<@Valid ActivityWrite> activities,
                        @NotNull List<@Valid AccommodationWrite> accommodations,
-                       @NotNull List<@Valid TransportWrite> transports) {}
+                       @NotNull List<@Valid TransportWrite> transports,
+                       @Size(max = 64) String timeZone) {}
     record StopWrite(@NotNull UUID destinationId, @Min(0) int position, LocalDate arrivalDate,
                      LocalDate departureDate) {}
     record ActivityWrite(@NotBlank String name, String description, @NotNull LocalDate date) {}

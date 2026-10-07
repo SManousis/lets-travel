@@ -199,12 +199,15 @@ final class Neo4jTravelRepository {
                 Node current = lockedRecord.get("t").asNode();
                 long participantCount = lockedRecord.get("participantCount").asLong();
                 if (travel.capacity() < participantCount) throw new TravelStore.Conflict("CAPACITY_BELOW_PARTICIPANTS");
+                if (participantCount > 0 && changesBookedTerms(current, travel))
+                    throw new TravelStore.Conflict("TRAVEL_HAS_SUBSCRIBERS");
                 Status oldStatus = Status.valueOf(current.get("status").asString(Status.DRAFT.name()));
                 long nextVersion = current.get("version").asLong(0) + 1;
                 Travel effective = new Travel(travel.id(), uuid(current, "managerId"), travel.name(), travel.description(),
                         travel.startDate(), travel.endDate(), travel.durationDays(), travel.capacity(), travel.price(),
                         travel.currency(), travel.status(), nextVersion, travel.stops(), travel.activities(),
-                        travel.accommodations(), travel.transports(), Set.of(), createdAt(current), travel.updatedAt());
+                        travel.accommodations(), travel.transports(), Set.of(), createdAt(current), travel.updatedAt(),
+                        travel.timeZone());
                 tx.run("MATCH (t:Travel {id:$id})-[r:" + OWNED + "]->(owned) "
                         + "WHERE NOT owned:Participation DETACH DELETE owned", Map.of("id", travel.id().toString())).consume();
                 tx.run("MATCH (t:Travel {id:$id}) SET t=$properties", rootProperties(effective)).consume();
@@ -250,6 +253,35 @@ final class Neo4jTravelRepository {
                 return null;
             });
         }
+    }
+
+    /**
+     * Takes one place atomically. The travel node is write-locked first (SET lockVersion), so
+     * concurrent reservations for the same travel run one after another and each sees the places
+     * already taken; the last place can only be given once. The participation ID is derived from
+     * (travel, traveler), so a retry holds the same single place.
+     */
+    Travel reserve(UUID travelId, UUID travelerId, java.util.function.Function<Travel, String> rule) {
+        try (Session session = driver.session()) {
+            session.executeWrite(tx -> {
+                var guard = tx.run("MERGE (g:TravelerGuard {id:$travelerId}) "
+                        + "SET g.lockVersion=coalesce(g.lockVersion,0)+1 RETURN coalesce(g.deleted,false) AS deleted",
+                        Map.of("travelerId", travelerId.toString())).single();
+                if (guard.get("deleted").asBoolean()) throw new TravelStore.Conflict("TRAVELER_REMOVED");
+                var locked = tx.run("MATCH (t:Travel {id:$id}) SET t.lockVersion=coalesce(t.lockVersion,0)+1"
+                        + PROJECTION, Map.of("id", travelId.toString()));
+                if (!locked.hasNext()) throw new TravelStore.NotFound();
+                String problem = rule.apply(travel(locked.single()));
+                if (problem != null) throw new TravelStore.Conflict(problem);
+                String participationId = UUID.nameUUIDFromBytes((travelId + ":" + travelerId)
+                        .getBytes(StandardCharsets.UTF_8)).toString();
+                tx.run("MATCH (t:Travel {id:$travelId}) MERGE (p:Participation {id:$id}) "
+                                + "SET p.travelerId=$travelerId MERGE (t)-[:HAS_PARTICIPANT]->(p)",
+                        Map.of("travelId", travelId.toString(), "id", participationId, "travelerId", travelerId.toString())).consume();
+                return null;
+            });
+        }
+        return travel(travelId);
     }
 
     void removeParticipants(Set<UUID> travelerIds) {
@@ -369,7 +401,8 @@ final class Neo4jTravelRepository {
                 root.get("capacity").asInt(), new BigDecimal(root.get("price").asString()),
                 root.get("currency").asString(), Status.valueOf(root.get("status").asString()),
                 root.get("version").asLong(), stops, activities, stays, transports, travelers, createdAt(root),
-                root.get("updatedAt").isNull() ? createdAt(root) : Instant.parse(root.get("updatedAt").asString()));
+                root.get("updatedAt").isNull() ? createdAt(root) : Instant.parse(root.get("updatedAt").asString()),
+                root.get("timeZone").asString(Travel.DEFAULT_TIME_ZONE));
     }
 
     private static UUID destinationForStop(Node stop) {
@@ -409,7 +442,17 @@ final class Neo4jTravelRepository {
         properties.put("version", travel.version());
         properties.put("createdAt", travel.createdAt().toString());
         properties.put("updatedAt", travel.updatedAt().toString());
+        properties.put("timeZone", travel.timeZone());
         return Map.of("id", travel.id().toString(), "properties", properties);
+    }
+
+    /** Subscriptions snapshot dates, zone and price, so these stay fixed once places are taken. */
+    private static boolean changesBookedTerms(Node current, Travel next) {
+        return !current.get("startDate").asString().equals(date(next.startDate()))
+                || !current.get("endDate").asString().equals(date(next.endDate()))
+                || new BigDecimal(current.get("price").asString()).compareTo(next.price()) != 0
+                || !current.get("currency").asString().equals(next.currency())
+                || !current.get("timeZone").asString(Travel.DEFAULT_TIME_ZONE).equals(next.timeZone());
     }
 
     private static String eventType(Status oldStatus, Status newStatus) {
@@ -422,7 +465,7 @@ final class Neo4jTravelRepository {
         return new Travel(travel.id(), travel.managerId(), travel.name(), travel.description(), travel.startDate(),
                 travel.endDate(), travel.durationDays(), travel.capacity(), travel.price(), travel.currency(),
                 travel.status(), version, travel.stops(), travel.activities(), travel.accommodations(), travel.transports(),
-                travel.travelerIds(), travel.createdAt(), travel.updatedAt());
+                travel.travelerIds(), travel.createdAt(), travel.updatedAt(), travel.timeZone());
     }
 
     private static void createEvent(TransactionContext tx, String eventType, Travel travel) {
@@ -448,6 +491,7 @@ final class Neo4jTravelRepository {
                 "\"description\":" + quote(travel.description()) + "," +
                 "\"startDate\":" + quote(date(travel.startDate())) + "," +
                 "\"endDate\":" + quote(date(travel.endDate())) + "," +
+                "\"timeZone\":" + quote(travel.timeZone()) + "," +
                 "\"capacity\":" + travel.capacity() + "," +
                 "\"remainingCapacity\":" + Math.max(0, travel.capacity() - travel.travelerIds().size()) + "," +
                 "\"price\":" + quote(travel.price().toPlainString()) + "," +
