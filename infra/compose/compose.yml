@@ -140,9 +140,15 @@ services:
       AUTH_INTERNAL_SERVICE_TOKEN: "${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}"
       USER_SERVICE_URL: http://user-service:8082
       AUTH_SERVICE_URL: http://auth-service:8081
+      ENGAGEMENT_SERVICE_URL: http://engagement-service:8085
+      # Provider secrets come from the environment / deployment secret store, never from the repository.
       STRIPE_SANDBOX_SECRET_KEY: ${STRIPE_SANDBOX_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       PAYPAL_SANDBOX_CLIENT_ID: ${PAYPAL_SANDBOX_CLIENT_ID:-}
       PAYPAL_SANDBOX_CLIENT_SECRET: ${PAYPAL_SANDBOX_CLIENT_SECRET:-}
+      # Built-in test provider for demos without provider accounts. Off unless explicitly enabled.
+      PAYMENT_TEST_PROVIDER_ENABLED: ${PAYMENT_TEST_PROVIDER_ENABLED:-false}
+      PAYMENT_TEST_WEBHOOK_SECRET: ${PAYMENT_TEST_WEBHOOK_SECRET:-}
     depends_on:
       postgres: { condition: service_healthy }
     networks: [backend]
@@ -166,6 +172,7 @@ services:
       AUTH_SERVICE_URL: http://auth-service:8081
       USER_SERVICE_URL: http://user-service:8082
       TRAVEL_SERVICE_URL: http://travel-service:8083
+      PAYMENT_SERVICE_URL: http://payment-service:8084
     depends_on:
       postgres: { condition: service_healthy }
       user-service: { condition: service_healthy }

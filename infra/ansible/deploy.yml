@@ -36,6 +36,7 @@
       STRIPE_SANDBOX_SECRET_KEY: "{{ stripe_sandbox_secret_key | default(lookup('ansible.builtin.env', 'STRIPE_SANDBOX_SECRET_KEY'), true) }}"
       PAYPAL_SANDBOX_CLIENT_ID: "{{ paypal_sandbox_client_id | default(lookup('ansible.builtin.env', 'PAYPAL_SANDBOX_CLIENT_ID'), true) }}"
       PAYPAL_SANDBOX_CLIENT_SECRET: "{{ paypal_sandbox_client_secret | default(lookup('ansible.builtin.env', 'PAYPAL_SANDBOX_CLIENT_SECRET'), true) }}"
+      STRIPE_WEBHOOK_SECRET: "{{ stripe_webhook_secret | default(lookup('ansible.builtin.env', 'STRIPE_WEBHOOK_SECRET'), true) }}"
   tasks:
     - name: Validate release identity and registry input
       ansible.builtin.assert:
