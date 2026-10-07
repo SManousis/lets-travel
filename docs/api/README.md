@@ -42,11 +42,11 @@ operations to the new roles.
 Each document is standalone with local component references. The local server is
 `http://localhost:8080`; paths already contain `/api`, and the gateway must not
 strip it. The deployed server uses HTTPS. Business operations require a bearer
-token with `ADMIN`; a plain HTTP bearer security scheme cannot encode role checks,
-so each contract additionally declares `x-required-role: ADMIN`. Login has no
-authentication requirement. Refresh uses the secure refresh cookie plus CSRF
-header, and logout requires both bearer and refresh-cookie/CSRF protection.
-Tokens and secret-bearing request fields must never be logged.
+access token (a JWT, see [auth.yaml](auth.yaml)) whose role meets the operation's
+`x-required-role`, described under Roles above. Login has no authentication
+requirement. Refresh uses the secure refresh cookie plus the CSRF header and an
+allowed Origin; logout needs only the bearer token. Tokens and secret-bearing
+request fields must never be logged.
 
 Lists use zero-based `page` (default 0) and `size` (default 20, maximum 100). Results
 contain `items`, `page`, `size`, `totalElements`, and `totalPages`, ordered by

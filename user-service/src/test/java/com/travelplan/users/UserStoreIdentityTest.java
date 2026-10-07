@@ -1,4 +1,5 @@
 package com.travelplan.users;
+import com.travelplan.common.security.Role;
 
 import java.sql.Timestamp;
 import org.junit.jupiter.api.Test;
@@ -42,9 +43,9 @@ class UserStoreIdentityTest {
         UserStore store = new UserStore(revocations, provisioning, provider, managers);
 
         assertThrows(DataAccessResourceFailureException.class,
-                () -> store.create("retry@example.com", "First", "Last", UserDomain.Role.OPERATOR));
+                () -> store.create("retry@example.com", "First", "Last", Role.TRAVELER));
         verify(revocations).revoke(any());
-        assertThat(store.create("retry@example.com", "First", "Last", UserDomain.Role.OPERATOR).email())
+        assertThat(store.create("retry@example.com", "First", "Last", Role.TRAVELER).email())
                 .isEqualTo("retry@example.com");
     }
 
@@ -61,7 +62,7 @@ class UserStoreIdentityTest {
         UserStore store = new UserStore(revocations, mock(AuthProvisionClient.class), provider, managers);
 
         var failure = assertThrows(DataAccessResourceFailureException.class,
-                () -> store.create("retry@example.com", "First", "Last", UserDomain.Role.OPERATOR));
+                () -> store.create("retry@example.com", "First", "Last", Role.TRAVELER));
         assertThat(failure.getSuppressed()).hasSize(1);
         assertThat(failure.getSuppressed()[0]).hasMessage("auth unavailable");
     }
@@ -74,10 +75,10 @@ class UserStoreIdentityTest {
         when(managers.getIfAvailable()).thenReturn(mock(PlatformTransactionManager.class));
         UserStore store = new UserStore(mock(RevocationClient.class), mock(AuthProvisionClient.class), provider, managers);
 
-        var user = store.create("person@example.com", "First", "Last", UserDomain.Role.OPERATOR);
+        var user = store.create("person@example.com", "First", "Last", Role.TRAVELER);
 
         verify(jdbc).update(startsWith("insert into users"), eq(user.id()), eq(user.email()),
-                eq("First"), eq("Last"), eq("OPERATOR"), eq("ACTIVE"),
+                eq("First"), eq("Last"), eq("TRAVELER"), eq("ACTIVE"),
                 eq(Timestamp.from(user.createdAt())));
     }
 
@@ -86,22 +87,22 @@ class UserStoreIdentityTest {
         AuthProvisionClient provisioning = mock(AuthProvisionClient.class);
         @SuppressWarnings("unchecked") ObjectProvider<JdbcTemplate> provider = mock(ObjectProvider.class);
         UserStore store = new UserStore(revocations, provisioning, provider);
-        var user = store.create("person@example.com", "First", "Last", UserDomain.Role.OPERATOR);
-        verify(provisioning).provision(eq(user.id()), eq(user.email()), anyString(), eq("OPERATOR"));
+        var user = store.create("person@example.com", "First", "Last", Role.TRAVELER);
+        verify(provisioning).provision(eq(user.id()), eq(user.email()), anyString(), eq("TRAVELER"));
 
-        var updated = store.update(user.id(), "new@example.com", null, null, UserDomain.Role.ADMIN, null);
+        var updated = store.update(user.id(), "new@example.com", null, null, Role.ADMIN, null);
         verify(provisioning).update(user.id(), "new@example.com", "ADMIN", true);
         assertThat(updated.email()).isEqualTo("new@example.com");
-        assertThat(updated.role()).isEqualTo(UserDomain.Role.ADMIN);
+        assertThat(updated.role()).isEqualTo(Role.ADMIN);
     }
 
     @Test void failedIdentityUpdateDoesNotChangeUserProfile() {
         AuthProvisionClient provisioning = mock(AuthProvisionClient.class);
         @SuppressWarnings("unchecked") ObjectProvider<JdbcTemplate> provider = mock(ObjectProvider.class);
         UserStore store = new UserStore(mock(RevocationClient.class), provisioning, provider);
-        var user = store.create("person@example.com", "First", "Last", UserDomain.Role.OPERATOR);
+        var user = store.create("person@example.com", "First", "Last", Role.TRAVELER);
         doThrow(new IllegalStateException("auth offline")).when(provisioning)
-                .update(user.id(), user.email(), "OPERATOR", false);
+                .update(user.id(), user.email(), "TRAVELER", false);
 
         assertThrows(UserStore.Conflict.class, () -> store.update(user.id(), null, null, null, null, UserDomain.Status.DISABLED));
         assertThat(store.get(user.id()).status()).isEqualTo(UserDomain.Status.ACTIVE);

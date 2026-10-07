@@ -12,10 +12,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @ActiveProfiles("infra")
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:auth-infra-wiring;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+        "spring.datasource.url=jdbc:h2:mem:auth-infra-wiring;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;"
+                + "INIT=CREATE DOMAIN IF NOT EXISTS TIMESTAMPTZ AS TIMESTAMP WITH TIME ZONE",
         "spring.datasource.username=sa",
         "spring.datasource.password=",
-        "spring.flyway.enabled=false",
+
         "management.server.port=0"
 })
 class AuthInfraWiringTest {

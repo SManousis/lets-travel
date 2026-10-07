@@ -1,28 +1,26 @@
 package com.travelplan.search.security;
 
+import com.travelplan.common.security.ServiceSecurity;
+import com.travelplan.common.security.TokenAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 
 /**
- * Denies every API request until role-based token authentication is added in Phase 1.
+ * Any signed-in role may search.
+ * /internal endpoints are not routed by the gateway and check the internal service token themselves.
  */
 @Configuration
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        return http.csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+    SecurityFilterChain securityFilterChain(HttpSecurity http, TokenAuthenticationFilter tokens) throws Exception {
+        return ServiceSecurity.apply(http, tokens)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/**", "/error").permitAll()
-                        .requestMatchers("/api/**").authenticated()
+                        .requestMatchers("/actuator/**", "/error", "/internal/**").permitAll()
+                        .requestMatchers("/api/**").hasRole("TRAVELER")
                         .anyRequest().denyAll())
-                .exceptionHandling(errors -> errors.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .build();
     }
 }

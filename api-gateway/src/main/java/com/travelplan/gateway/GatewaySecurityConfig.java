@@ -1,26 +1,49 @@
 package com.travelplan.gateway;
 
+import com.travelplan.common.security.AccessToken;
+import com.travelplan.common.security.AccessTokenCodec;
+import com.travelplan.common.security.Role;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.Base64;
 import java.time.Duration;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Qualifier;
-import reactor.netty.http.client.HttpClient;
-import reactor.core.publisher.Mono;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.server.WebFilter;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
+import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
+/**
+ * Coarse authorization at the entry point: verifies the access token, enforces the minimum
+ * role for each path prefix, and confirms with auth-service that the session is active.
+ * Receiving services repeat these checks and add ownership rules.
+ */
 @Configuration
 public class GatewaySecurityConfig {
+    /** Paths that need no token. */
+    static final List<String> PUBLIC_PATHS = List.of("/api/auth/login", "/api/auth/refresh");
+
+    /** Minimum role per path prefix, first match wins; other /api paths need any signed-in role. */
+    static final List<Rule> RULES = List.of(
+            new Rule("/api/auth", Role.TRAVELER),
+            new Rule("/api/users", Role.ADMIN),
+            new Rule("/api/travelers", Role.ADMIN),
+            new Rule("/api/travels", Role.ADMIN),
+            new Rule("/api/destinations", Role.ADMIN),
+            new Rule("/api/payment-methods", Role.ADMIN),
+            new Rule("/api/payment-gateways", Role.ADMIN));
+
     @Bean
     SecurityWebFilterChain gatewaySecurityChain(ServerHttpSecurity http) {
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
@@ -29,22 +52,24 @@ public class GatewaySecurityConfig {
     }
 
     @Bean
-    WebFilter adminTokenFilter(@Value("${security.token-secret:replace-with-at-least-32-random-characters}") String secret,
+    WebFilter accessTokenFilter(AccessTokenCodec codec,
             @Value("${auth.service-url:http://127.0.0.1:8081}") String authUrl,
             @Value("${security.internal-service-token:change-me-internal}") String internalToken,
             @Qualifier("authValidationHttpClient") HttpClient authValidationHttpClient) {
-        if (secret.length() < 32) throw new IllegalArgumentException("security.token-secret must contain at least 32 characters");
-        byte[] key = secret.getBytes(StandardCharsets.UTF_8);
         WebClient client = WebClient.builder().baseUrl(authUrl)
                 .clientConnector(new ReactorClientHttpConnector(authValidationHttpClient)).build();
         return (exchange, chain) -> {
             String path = exchange.getRequest().getPath().value();
-            if (!path.startsWith("/api/") || path.equals("/api/auth/login") || path.equals("/api/auth/refresh")) return chain.filter(exchange);
-            String role = verify(exchange.getRequest().getHeaders().getFirst("Authorization"), key);
-            if (role == null) { exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED); return exchange.getResponse().setComplete(); }
-            if (!"ADMIN".equals(role)) { exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN); return exchange.getResponse().setComplete(); }
+            if (!path.startsWith("/api/") || PUBLIC_PATHS.contains(path)) return chain.filter(exchange);
+            String header = exchange.getRequest().getHeaders().getFirst("Authorization");
+            Optional<AccessToken> token = header != null && header.startsWith("Bearer ")
+                    ? codec.verify(header.substring(7)) : Optional.empty();
+            if (token.isEmpty()) return reject(exchange, HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Authentication required");
+            if (!token.get().role().includes(requiredRole(path))) {
+                return reject(exchange, HttpStatus.FORBIDDEN, "FORBIDDEN", "Your role does not allow this action");
+            }
             return client.post().uri("/internal/token-validation")
-                    .header("Authorization", exchange.getRequest().getHeaders().getFirst("Authorization"))
+                    .header("Authorization", header)
                     .header("X-Internal-Service-Token", internalToken)
                     .headers(headers -> {
                         String requestId = exchange.getRequest().getHeaders().getFirst("X-Request-ID");
@@ -52,32 +77,39 @@ public class GatewaySecurityConfig {
                     })
                     .exchangeToMono(response -> {
                         int status = response.statusCode().value();
-                        if (status == 200) return Mono.just(ValidationResult.ACTIVE);
-                        if (status == 401 || status == 403) return Mono.just(ValidationResult.DENIED);
-                        return Mono.just(ValidationResult.UNAVAILABLE);
+                        if (status == 200) return Mono.just(SessionState.ACTIVE);
+                        if (status == 401 || status == 403) return Mono.just(SessionState.DENIED);
+                        return Mono.just(SessionState.UNAVAILABLE);
                     })
                     .timeout(Duration.ofSeconds(3))
-                    .onErrorReturn(ValidationResult.UNAVAILABLE)
-                    .flatMap(result -> {
-                        if (result == ValidationResult.ACTIVE) return chain.filter(exchange);
-                        exchange.getResponse().setStatusCode(result == ValidationResult.DENIED
-                                ? HttpStatus.UNAUTHORIZED : HttpStatus.SERVICE_UNAVAILABLE);
-                        return exchange.getResponse().setComplete();
+                    .onErrorReturn(SessionState.UNAVAILABLE)
+                    .flatMap(state -> switch (state) {
+                        case ACTIVE -> chain.filter(exchange);
+                        case DENIED -> reject(exchange, HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Session is no longer active");
+                        case UNAVAILABLE -> reject(exchange, HttpStatus.SERVICE_UNAVAILABLE, "DEPENDENCY_UNAVAILABLE",
+                                "Authentication service unavailable");
                     });
         };
     }
-    private enum ValidationResult { ACTIVE, DENIED, UNAVAILABLE }
-    private String verify(String header, byte[] key) {
-        try {
-            if (header == null || !header.startsWith("Bearer ")) return null;
-            String[] parts = header.substring(7).split("\\.", -1); Base64.Decoder d = Base64.getUrlDecoder();
-            if (parts.length != 2 || !MessageDigest.isEqual(sign(parts[0], key), d.decode(parts[1]))) return null;
-            String[] values = new String(d.decode(parts[0]), StandardCharsets.UTF_8).split("\\|", -1);
-            return values.length == 6 && "travel-plan-auth".equals(values[2]) && "travel-plan-admin".equals(values[3]) && Long.parseLong(values[4]) > System.currentTimeMillis() / 1000 ? values[1] : null;
-        } catch (RuntimeException e) { return null; }
+
+    static Role requiredRole(String path) {
+        return RULES.stream().filter(rule -> path.equals(rule.prefix()) || path.startsWith(rule.prefix() + "/"))
+                .map(Rule::minimum).findFirst().orElse(Role.TRAVELER);
     }
-    private byte[] sign(String value, byte[] key) {
-        try { Mac mac = Mac.getInstance("HmacSHA256"); mac.init(new SecretKeySpec(key, "HmacSHA256")); return mac.doFinal(value.getBytes(StandardCharsets.UTF_8)); }
-        catch (Exception e) { throw new IllegalStateException(e); }
+
+    private static Mono<Void> reject(ServerWebExchange exchange, HttpStatus status, String code, String message) {
+        ServerHttpResponse response = exchange.getResponse();
+        response.setStatusCode(status);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        if (status == HttpStatus.UNAUTHORIZED) response.getHeaders().set("WWW-Authenticate", "Bearer");
+        String traceId = response.getHeaders().getFirst("X-Request-ID");
+        byte[] body = ("{\"code\":\"" + code + "\",\"message\":\"" + message + "\",\"fieldErrors\":[],\"traceId\":\""
+                + (traceId == null ? "" : traceId) + "\"}").getBytes(StandardCharsets.UTF_8);
+        DataBuffer buffer = response.bufferFactory().wrap(body);
+        return response.writeWith(Mono.just(buffer));
     }
+
+    record Rule(String prefix, Role minimum) {}
+
+    private enum SessionState { ACTIVE, DENIED, UNAVAILABLE }
 }

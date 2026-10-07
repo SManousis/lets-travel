@@ -39,7 +39,7 @@ it("shows the local default and lets an admin select another active method", asy
     }]);
     if (path === "/api/users?page=0&size=100") return json({ items: [{
       id: "user-one", email: "user@example.com", firstName: "User", lastName: "One",
-      role: "OPERATOR", status: "ACTIVE", createdAt: "2026-10-01T00:00:00Z",
+      role: "TRAVELER", status: "ACTIVE", createdAt: "2026-10-01T00:00:00Z",
     }], page: 0, size: 100, total: 1 });
     throw new Error(`Unexpected request: ${path}`);
   }));
@@ -71,7 +71,7 @@ it("sends create-time default preference with a sandbox method", async () => {
     }]);
     if (path === "/api/users?page=0&size=100") return json({ items: [{
       id: "user-one", email: "user@example.com", firstName: "User", lastName: "One",
-      role: "OPERATOR", status: "ACTIVE", createdAt: "2026-10-01T00:00:00Z",
+      role: "TRAVELER", status: "ACTIVE", createdAt: "2026-10-01T00:00:00Z",
     }], page: 0, size: 100, total: 1 });
     throw new Error(`Unexpected request: ${path}`);
   }));
@@ -111,7 +111,7 @@ it("keeps a pending connection's inputs fixed while retrying its key", async () 
     }]);
     if (path === "/api/users?page=0&size=100") return json({ items: [{
       id: "user-one", email: "user@example.com", firstName: "User", lastName: "One",
-      role: "OPERATOR", status: "ACTIVE", createdAt: "2026-10-01T00:00:00Z",
+      role: "TRAVELER", status: "ACTIVE", createdAt: "2026-10-01T00:00:00Z",
     }], page: 0, size: 100, total: 1 });
     throw new Error(`Unexpected request: ${path}`);
   }));

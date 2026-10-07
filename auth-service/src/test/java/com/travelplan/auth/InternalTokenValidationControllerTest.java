@@ -1,6 +1,9 @@
 package com.travelplan.auth;
 
+import com.travelplan.auth.security.ProvisionedIdentityStore;
 import com.travelplan.auth.security.TokenService;
+import com.travelplan.common.security.Role;
+import java.util.UUID;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -18,22 +21,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InternalTokenValidationControllerTest {
     @Value("${local.server.port}") int port;
     @Autowired TokenService tokens;
+    @Autowired ProvisionedIdentityStore identities;
+
+    private String sessionToken() {
+        UUID id = UUID.randomUUID();
+        identities.provision(id, "admin-" + id + "@example.com", "hash", Role.ADMIN);
+        return tokens.startSession(identities.findBySubject(id).orElseThrow()).access().value();
+    }
 
     @Test void activeTokenReturnsSubjectAndRole() throws Exception {
-        String token = tokens.issue("admin-1", "ADMIN").value();
+        String token = sessionToken();
         HttpResponse<String> response = request(token, "service-secret");
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.body()).contains("admin-1", "ADMIN");
+        assertThat(response.body()).contains(tokens.verify(token).orElseThrow().userId().toString(), "ADMIN");
     }
 
     @Test void revokedTokenIsDenied() throws Exception {
-        String token = tokens.issue("admin-2", "ADMIN").value();
-        tokens.revoke(token);
+        String token = sessionToken();
+        tokens.endSession(tokens.verify(token).orElseThrow().sessionId());
         assertThat(request(token, "service-secret").statusCode()).isEqualTo(401);
     }
 
     @Test void wrongInternalCredentialIsDenied() throws Exception {
-        String token = tokens.issue("admin-3", "ADMIN").value();
+        String token = sessionToken();
         assertThat(request(token, "wrong-secret").statusCode()).isEqualTo(403);
     }
 

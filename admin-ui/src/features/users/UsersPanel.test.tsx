@@ -72,7 +72,7 @@ it("reuses a user creation key after failure and rotates it when the form change
   expect(posts).toHaveLength(3);
   expect(posts[1].key).not.toBe(posts[0].key);
   expect(posts[2].key).toBe(posts[1].key);
-  expect(posts[2].body).toEqual({ email: "jamie@example.com", firstName: "Janet", lastName: "Doe", role: "OPERATOR" });
+  expect(posts[2].body).toEqual({ email: "jamie@example.com", firstName: "Janet", lastName: "Doe", role: "TRAVELER" });
   expect(form.getByLabelText("Email")).toHaveValue("");
 
   await user.type(form.getByLabelText("Email"), "alex@example.com");
