@@ -101,7 +101,7 @@ class SubscriptionController {
     private static SubscriberView subscriberView(SubscriptionService.Subscriber subscriber) {
         Subscription subscription = subscriber.subscription();
         return new SubscriberView(subscription.subscriptionId(), subscription.travelerId(), subscriber.displayName(),
-                subscriber.memberSince(), subscriber.completedTrips(), 0, subscription.status(),
+                subscriber.memberSince(), subscriber.completedTrips(), subscriber.reportCount(), subscription.status(),
                 subscription.createdAt(), subscription.cancellationReason(), subscription.cancelledAt());
     }
 
@@ -114,7 +114,7 @@ class SubscriptionController {
         throw new SubscriptionService.Failure(400, "VALIDATION_ERROR", "Idempotency-Key header must be a UUID");
     }
 
-    private static void checkPage(int page, int size) {
+    static void checkPage(int page, int size) {
         if (page < 0 || size < 1 || size > 100)
             throw new SubscriptionService.Failure(400, "VALIDATION_ERROR", "page must be >= 0 and size between 1 and 100");
     }

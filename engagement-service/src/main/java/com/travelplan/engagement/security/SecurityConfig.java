@@ -4,6 +4,7 @@ import com.travelplan.common.security.ServiceSecurity;
 import com.travelplan.common.security.TokenAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -19,7 +20,9 @@ public class SecurityConfig {
         return ServiceSecurity.apply(http, tokens)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**", "/error", "/internal/**").permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/managed-travels/**").hasRole("TRAVEL_MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/feedback").hasRole("TRAVEL_MANAGER")
                         .requestMatchers("/api/**").hasRole("TRAVELER")
                         .anyRequest().denyAll())
                 .build();

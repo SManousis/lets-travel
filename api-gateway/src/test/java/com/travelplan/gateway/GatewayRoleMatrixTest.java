@@ -53,6 +53,11 @@ class GatewayRoleMatrixTest {
         MATRIX.put("/api/managers", Role.TRAVELER);
         MATRIX.put("/api/subscriptions", Role.TRAVELER);
         MATRIX.put("/api/managed-travels", Role.TRAVEL_MANAGER);
+        MATRIX.put("/api/feedback", Role.TRAVEL_MANAGER); // GET lists feedback; POST (submit) is TRAVELER, see below
+        MATRIX.put("/api/feedback/mine", Role.TRAVELER);
+        MATRIX.put("/api/reports", Role.TRAVELER);
+        MATRIX.put("/api/admin/reports", Role.ADMIN);
+        MATRIX.put("/api/admin/reports/123", Role.ADMIN);
         MATRIX.put("/api/destinations", Role.TRAVELER); // reads; writes are ADMIN-only, see below
         MATRIX.put("/api/payment-webhooks/stripe", null);
         MATRIX.put("/api/payment-webhooks/test", null);
@@ -60,6 +65,11 @@ class GatewayRoleMatrixTest {
         MATRIX.put("/api/payment-options", Role.TRAVELER);
         MATRIX.put("/api/payment-methods", Role.ADMIN);
         MATRIX.put("/api/payment-gateways", Role.ADMIN);
+        MATRIX.put("/api/search", Role.TRAVELER);
+        MATRIX.put("/api/search/travels", Role.TRAVELER);
+        MATRIX.put("/api/search/autocomplete", Role.TRAVELER);
+        MATRIX.put("/api/search/admin/status", Role.ADMIN);
+        MATRIX.put("/api/search/admin/reindex", Role.ADMIN);
     }
 
     @Autowired RouteDefinitionLocator routes;
@@ -68,7 +78,7 @@ class GatewayRoleMatrixTest {
     @DynamicPropertySource
     static void urls(DynamicPropertyRegistry registry) {
         String url = "http://127.0.0.1:" + UPSTREAM.getAddress().getPort();
-        for (String service : new String[] {"auth", "users", "travel", "payments", "engagement"}) registry.add("services." + service + ".url", () -> url);
+        for (String service : new String[] {"auth", "users", "travel", "payments", "engagement", "search"}) registry.add("services." + service + ".url", () -> url);
         registry.add("auth.service-url", () -> url);
     }
 
@@ -113,6 +123,15 @@ class GatewayRoleMatrixTest {
         for (Role role : Role.values()) {
             int status = call("POST", "/api/destinations", CODEC.issue(UUID.randomUUID(), role, UUID.randomUUID()).value());
             assertThat(status).as("POST /api/destinations as " + role).isEqualTo(role == Role.ADMIN ? 200 : 403);
+        }
+    }
+
+    @Test void everyRoleMaySubmitFeedbackButOnlyManagersListIt() throws Exception {
+        for (Role role : Role.values()) {
+            String token = CODEC.issue(UUID.randomUUID(), role, UUID.randomUUID()).value();
+            assertThat(call("POST", "/api/feedback", token)).as("POST /api/feedback as " + role).isEqualTo(200);
+            assertThat(call("GET", "/api/feedback", token)).as("GET /api/feedback as " + role)
+                    .isEqualTo(role.includes(Role.TRAVEL_MANAGER) ? 200 : 403);
         }
     }
 

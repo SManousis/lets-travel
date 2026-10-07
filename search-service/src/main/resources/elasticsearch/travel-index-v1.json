@@ -1,0 +1,90 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "analysis": {
+      "filter": {
+        "autocomplete_prefixes": { "type": "edge_ngram", "min_gram": 1, "max_gram": 20 }
+      },
+      "analyzer": {
+        "folded": { "type": "custom", "tokenizer": "standard", "filter": ["lowercase", "asciifolding"] },
+        "autocomplete": { "type": "custom", "tokenizer": "standard", "filter": ["lowercase", "asciifolding", "autocomplete_prefixes"] }
+      },
+      "normalizer": {
+        "folded_keyword": { "type": "custom", "filter": ["lowercase", "asciifolding"] }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "travelId": { "type": "keyword" },
+      "managerId": { "type": "keyword" },
+      "managerName": { "type": "text", "analyzer": "folded" },
+      "title": {
+        "type": "text", "analyzer": "folded",
+        "fields": {
+          "prefix": { "type": "text", "analyzer": "autocomplete", "search_analyzer": "folded" },
+          "exact": { "type": "keyword", "normalizer": "folded_keyword" }
+        }
+      },
+      "description": { "type": "text", "analyzer": "folded" },
+      "status": { "type": "keyword" },
+      "bookable": { "type": "boolean" },
+      "startDate": { "type": "date", "format": "strict_date" },
+      "endDate": { "type": "date", "format": "strict_date" },
+      "durationDays": { "type": "integer" },
+      "timeZone": { "type": "keyword", "index": false },
+      "price": { "type": "scaled_float", "scaling_factor": 100 },
+      "currency": { "type": "keyword" },
+      "capacity": { "type": "integer" },
+      "remainingCapacity": { "type": "integer" },
+      "version": { "type": "long" },
+      "indexedAt": { "type": "date" },
+      "destinations": {
+        "properties": {
+          "name": {
+            "type": "text", "analyzer": "folded",
+            "fields": {
+              "prefix": { "type": "text", "analyzer": "autocomplete", "search_analyzer": "folded" },
+              "exact": { "type": "keyword", "normalizer": "folded_keyword" }
+            }
+          },
+          "country": {
+            "type": "text", "analyzer": "folded",
+            "fields": {
+              "prefix": { "type": "text", "analyzer": "autocomplete", "search_analyzer": "folded" },
+              "exact": { "type": "keyword", "normalizer": "folded_keyword" }
+            }
+          }
+        }
+      },
+      "activities": {
+        "properties": {
+          "name": {
+            "type": "text", "analyzer": "folded",
+            "fields": { "prefix": { "type": "text", "analyzer": "autocomplete", "search_analyzer": "folded" } }
+          },
+          "description": { "type": "text", "analyzer": "folded" },
+          "date": { "type": "date", "format": "strict_date" }
+        }
+      },
+      "accommodations": {
+        "properties": {
+          "name": { "type": "text", "analyzer": "folded" },
+          "address": { "type": "text", "analyzer": "folded" }
+        }
+      },
+      "transports": {
+        "properties": {
+          "mode": {
+            "type": "text", "analyzer": "folded",
+            "fields": { "exact": { "type": "keyword", "normalizer": "folded_keyword" } }
+          },
+          "departure": { "type": "text", "analyzer": "folded" },
+          "arrival": { "type": "text", "analyzer": "folded" }
+        }
+      }
+    }
+  }
+}

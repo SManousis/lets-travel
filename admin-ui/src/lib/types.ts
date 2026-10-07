@@ -72,3 +72,56 @@ export type PaymentOptions = {
     isDefault: boolean; available: boolean }[];
   testProviderEnabled: boolean;
 };
+
+/** One search result from search-service (docs/api/search.yaml). */
+export type TravelHit = {
+  travelId: string; title: string; description: string; destinations: string[]; countries: string[];
+  startDate: string; endDate: string; durationDays: number; price: number; currency: string;
+  remainingPlaces: number; managerId: string; managerName: string | null; activities: string[];
+  transportModes: string[]; highlights: string[];
+};
+
+export type SearchPage = {
+  items: TravelHit[]; page: number; size: number; totalElements: number; totalPages: number; indexedAt: string | null;
+};
+
+export type Suggestion = {
+  text: string; type: "TRAVEL" | "DESTINATION" | "COUNTRY" | "ACTIVITY"; travelId: string | null; context: string;
+};
+
+export type SearchSort = "RELEVANCE" | "START_DATE" | "PRICE_ASC" | "PRICE_DESC";
+
+/** The filters the search API accepts; empty strings mean "not set". */
+export type SearchFilters = {
+  country: string; transportMode: string; startFrom: string; startTo: string;
+  minPrice: string; maxPrice: string; currency: string; sort: SearchSort | "";
+};
+
+/** Feedback as engagement-service returns it. `comment` is plain text and is always rendered as text. */
+export type Feedback = {
+  feedbackId: string; travelId: string; travelTitle: string; managerId: string; authorDisplayName: string;
+  rating: number; comment: string | null; createdAt: string;
+};
+
+/** A rating on the public manager page: the author is never shown. */
+export type PublicRating = { travelTitle: string; rating: number; comment: string | null; createdAt: string };
+
+export type ManagerPage = {
+  managerId: string; displayName: string; memberSince: string; completedTravels: number; totalTravels: number;
+  averageRating: number | null; ratingCount: number; recentRatings: PublicRating[]; reportCount: number;
+};
+
+export type ReportTargetType = "TRAVEL_MANAGER" | "TRAVELER" | "TRAVEL";
+export type ReportStatus = "OPEN" | "IN_REVIEW" | "RESOLVED" | "DISMISSED";
+export type ReportCategory = "FRAUD" | "HARASSMENT" | "SAFETY" | "MISLEADING_LISTING" | "INAPPROPRIATE_CONTENT" | "OTHER";
+
+/** A report as its reporter sees it. */
+export type Report = {
+  reportId: string; targetType: ReportTargetType; targetId: string; targetDisplayName: string;
+  category: ReportCategory; description: string; status: ReportStatus; createdAt: string;
+};
+
+export type ModerationEntry = { adminId: string; status: ReportStatus; note: string; at: string };
+
+/** Admin-only view of a report, with the reporter and the moderation history. */
+export type ReportDetail = Report & { reporterId: string; assigneeId: string | null; history: ModerationEntry[] };

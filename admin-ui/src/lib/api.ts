@@ -137,3 +137,17 @@ export async function completePasswordSetup(token: string, password: string): Pr
     : "The password could not be set. Try again.";
   throw new ApiError(response.status, "PASSWORD_SETUP_FAILED", message);
 }
+
+/** Query string for GET /api/search/travels; empty filters are left out. */
+export function searchPath(text: string, filters: Record<string, string>, page = 0, size = 10): string {
+  const params = new URLSearchParams();
+  if (text.trim()) params.set("q", text.trim());
+  for (const [name, value] of Object.entries(filters)) if (value.trim()) params.set(name, value.trim());
+  params.set("page", String(page));
+  params.set("size", String(size));
+  return `/api/search/travels?${params.toString()}`;
+}
+
+export function autocompletePath(text: string, limit = 8): string {
+  return `/api/search/autocomplete?${new URLSearchParams({ q: text.trim(), limit: String(limit) }).toString()}`;
+}

@@ -14,7 +14,7 @@ and [API contracts](api/README.md) for implementation scope.
 | Travel service | Manager-owned travels, destinations, ordered itineraries, participation | 8083 / 9083 | `/api/travels/**`, `/api/destinations/**` |
 | Payment service | Saved provider references, gateway settings, subscription payments, refunds, signed provider webhooks | 8084 / 9084 | `/api/payment-methods/**`, `/api/payment-gateways/**`, `/api/subscription-payments/**`, `/api/payment-options`, `/api/payment-webhooks/{stripe,test}` |
 | Engagement service | Subscriptions, cancellation history, feedback, reports, dashboard projections (PostgreSQL `travel_engagement`) | 8085 / 9085 | `/api/managers/**`, `/api/subscriptions/**`, `/api/managed-travels/**` |
-| Search service | Search/autocomplete API and the Elasticsearch travel index | 8086 / 9086 | Not routed yet |
+| Search service | Search/autocomplete API and the Elasticsearch travel index (derived copy, see [search](search.md)) | 8086 / 9086 | `/api/search/**` |
 
 Local development binds application and management listeners to loopback. The
 gateway preserves the complete `/api` path. Deployment will expose only an HTTPS
@@ -209,22 +209,25 @@ sequenceDiagram
     participant P as payment-service (PostgreSQL)
     M->>T: publish travel
     T->>T: one transaction: travel + TravelPublished outbox row
-    S->>T: poll feed, apply TravelPublished (index document)
+    T-->>S: after commit: "travel X changed" (internal, fire and forget)
+    S->>T: fetch travel X's current state, index it (or remove it)
     E->>T: poll feed, apply TravelPublished (bookable snapshot)
     Note over S,E: travel is now searchable and bookable
     participant V as Traveler (browser)
     V->>E: subscribe
     E->>T: reserve place (internal, atomic in Neo4j)
+    T-->>S: "travel X changed": re-index remaining places
     E->>E: one transaction: PENDING_PAYMENT subscription + SubscriptionReserved
     V->>P: pay
     P->>P: charge provider
     P->>E: payment outcome (internal): CONFIRMED + SubscriptionConfirmed
-    S->>E: poll feed, update remaining places
     Note over E: dashboard projections update from the same events
 ```
 
 Every arrow labelled "poll feed" is asynchronous and idempotent; see
-[events](events.md) for ordering, retries, reconciliation and rebuilds.
+[events](events.md) for ordering, retries, reconciliation and rebuilds. The search
+index (Phase 5) uses change notifications plus a periodic full rebuild instead of a
+feed; [search](search.md) explains why and how drift is repaired.
 
 ## Recommendation scoring
 

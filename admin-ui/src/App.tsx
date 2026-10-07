@@ -6,14 +6,20 @@ import { TravelsPanel } from "./features/travels/TravelsPanel";
 import { PaymentsPanel } from "./features/payments/PaymentsPanel";
 import { TravelerTrips } from "./features/subscriptions/TravelerTrips";
 import { SubscriberManager } from "./features/subscriptions/SubscriberManager";
+import { FeedbackPanel } from "./features/feedback/FeedbackPanel";
+import { FeedbackOverview } from "./features/feedback/FeedbackOverview";
+import { MyReports } from "./features/reports/MyReports";
+import { ReportQueue } from "./features/reports/ReportQueue";
 
-type Section = "users" | "travels" | "subscriptions" | "payments";
+type Section = "users" | "travels" | "subscriptions" | "feedback" | "reports" | "payments";
 type Session = { token: string; expiresAt: number };
 
 const sections: { id: Section; label: string }[] = [
   { id: "users", label: "Users and travelers" },
   { id: "travels", label: "Travels and itineraries" },
   { id: "subscriptions", label: "Subscribers" },
+  { id: "feedback", label: "Feedback" },
+  { id: "reports", label: "Reports" },
   { id: "payments", label: "Payments and gateways" },
 ];
 
@@ -149,7 +155,10 @@ function App() {
     </header>
     {me.role !== "ADMIN" ? <main id="main-content"><AccountHome me={me} />
       {me.role === "TRAVEL_MANAGER" && <SubscriberManager context={context} />}
-      <TravelerTrips context={context} /></main> : <main id="main-content">
+      {me.role === "TRAVEL_MANAGER" && <FeedbackOverview context={context} />}
+      <TravelerTrips context={context} />
+      <FeedbackPanel context={context} />
+      <MyReports context={context} /></main> : <main id="main-content">
       <div className="workspace-intro"><p className="eyebrow">Operations</p><h1>Plan and manage every journey.</h1>
         <p>Choose an area to work with live records from the administration services.</p></div>
       <nav aria-label="Admin sections" className="section-nav">
@@ -159,6 +168,8 @@ function App() {
       {visited.includes("users") && <div hidden={section !== "users"}><UsersPanel context={context} active={section === "users"} /></div>}
       {visited.includes("travels") && <div hidden={section !== "travels"}><TravelsPanel context={context} active={section === "travels"} /></div>}
       {visited.includes("subscriptions") && <div hidden={section !== "subscriptions"}><SubscriberManager context={context} /></div>}
+      {visited.includes("feedback") && <div hidden={section !== "feedback"}><FeedbackOverview context={context} admin /></div>}
+      {visited.includes("reports") && <div hidden={section !== "reports"}><ReportQueue context={context} /></div>}
       {visited.includes("payments") && <div hidden={section !== "payments"}><PaymentsPanel context={context} active={section === "payments"} /></div>}
     </main>}
     <footer><span>Travel Plan</span><span>Operations administration</span></footer>

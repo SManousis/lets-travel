@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.JsonNode;
@@ -27,8 +29,12 @@ import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@ActiveProfiles("infra")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"management.server.port=0", "security.internal-service-token=test-internal"})
+        properties = {"management.server.port=0", "security.internal-service-token=test-internal",
+                "spring.datasource.url=jdbc:h2:mem:engagement-manager-page;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+                "spring.datasource.username=sa", "spring.datasource.password=",
+                "subscriptions.housekeeping-initial-delay=PT24H"})
 class ManagerPageTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final AtomicInteger USER_STATUS = new AtomicInteger(200);
@@ -41,6 +47,7 @@ class ManagerPageTest {
     private static final AtomicReference<String> TRAVEL_REQUEST_ID = new AtomicReference<>();
     private static final HttpServer DEPENDENCIES = dependencies();
     @Autowired AccessTokenCodec codec;
+    @Autowired JdbcTemplate jdbc;
     @Value("${local.server.port}") int port;
     private UUID managerId;
 
@@ -78,6 +85,7 @@ class ManagerPageTest {
         assertThat(page.get("completedTravels").asLong()).isEqualTo(7);
         assertThat(page.get("totalTravels").asLong()).isEqualTo(11);
         assertThat(page.get("averageRating").isNull()).isTrue();
+        assertThat(page.get("ratingCount").asLong()).isZero();
         assertThat(page.get("recentRatings")).isEmpty();
         assertThat(page.get("reportCount").asLong()).isZero();
         assertThat(page.has("email")).isFalse();
@@ -92,6 +100,31 @@ class ManagerPageTest {
         assertThat(TRAVEL_TOKEN.get()).isEqualTo("test-internal");
         assertThat(USER_REQUEST_ID.get()).isEqualTo("audit-trace-42");
         assertThat(TRAVEL_REQUEST_ID.get()).isEqualTo("audit-trace-42");
+    }
+
+    @Test void showsRatingsWithoutAuthorsAndCountsOnlyUpheldReports() throws Exception {
+        Fixtures.feedback(jdbc, managerId, "Crete", 5, "<script>alert(1)</script>", "2026-05-01T10:00:00Z");
+        Fixtures.feedback(jdbc, managerId, "Rhodes", 4, null, "2026-06-01T10:00:00Z");
+        Fixtures.feedback(jdbc, managerId, "Naxos", 4, "Fine", "2026-07-01T10:00:00Z");
+        Fixtures.feedback(jdbc, UUID.randomUUID(), "Someone else's trip", 1, "Other manager", "2026-07-02T10:00:00Z");
+        Fixtures.report(jdbc, "TRAVEL_MANAGER", managerId, "RESOLVED");
+        Fixtures.report(jdbc, "TRAVEL_MANAGER", managerId, "RESOLVED");
+        Fixtures.report(jdbc, "TRAVEL_MANAGER", managerId, "OPEN");
+        Fixtures.report(jdbc, "TRAVEL_MANAGER", managerId, "DISMISSED");
+        Fixtures.report(jdbc, "TRAVELER", managerId, "RESOLVED");
+
+        HttpResponse<String> response = get(managerId, Role.TRAVELER, null);
+        assertThat(response.statusCode()).isEqualTo(200);
+        JsonNode page = JSON.readTree(response.body());
+        assertThat(page.get("averageRating").asDouble()).isEqualTo(4.3);
+        assertThat(page.get("ratingCount").asLong()).isEqualTo(3);
+        JsonNode recent = page.get("recentRatings");
+        assertThat(recent).hasSize(3);
+        assertThat(recent.get(0).get("travelTitle").asString()).isEqualTo("Naxos");
+        assertThat(recent.get(2).get("comment").asString()).isEqualTo("<script>alert(1)</script>");
+        assertThat(recent.get(1).get("comment").isNull()).isTrue();
+        assertThat(page.get("reportCount").asLong()).isEqualTo(2);
+        assertThat(response.body()).doesNotContain("Secret Author", "private allegation text", "Other manager", "reporterId");
     }
 
     @Test void allSignedInRolesCanReadButAnonymousCannot() throws Exception {

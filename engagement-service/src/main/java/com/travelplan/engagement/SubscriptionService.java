@@ -33,14 +33,16 @@ class SubscriptionService {
     private final TravelReservationClient travels;
     private final UserSummaryClient users;
     private final PaymentRefundClient refunds;
+    private final ReportStore reports;
     private final Clock clock;
 
     SubscriptionService(SubscriptionStore store, TravelReservationClient travels, UserSummaryClient users,
-                        PaymentRefundClient refunds, Clock clock) {
+                        PaymentRefundClient refunds, ReportStore reports, Clock clock) {
         this.store = store;
         this.travels = travels;
         this.users = users;
         this.refunds = refunds;
+        this.reports = reports;
         this.clock = clock;
     }
 
@@ -122,7 +124,8 @@ class SubscriptionService {
         return store.mine(caller.userId(), status, page, size);
     }
 
-    record Subscriber(Subscription subscription, String displayName, LocalDate memberSince, long completedTrips) {}
+    record Subscriber(Subscription subscription, String displayName, LocalDate memberSince, long completedTrips,
+                      long reportCount) {}
 
     record SubscriberPage(List<Subscriber> items, long total) {}
 
@@ -137,7 +140,8 @@ class SubscriptionService {
                     profiles.computeIfAbsent(subscription.travelerId(), users::find);
             return new Subscriber(subscription, profile.map(UserSummaryClient.UserSummary::displayName).orElse("Former traveler"),
                     profile.map(summary -> LocalDate.ofInstant(summary.memberSince(), java.time.ZoneOffset.UTC)).orElse(null),
-                    store.completedTrips(subscription.travelerId()));
+                    store.completedTrips(subscription.travelerId()),
+                    reports.upheldAgainst(ReportStore.TargetType.TRAVELER, subscription.travelerId()));
         }).toList();
         return new SubscriberPage(items, found.total());
     }

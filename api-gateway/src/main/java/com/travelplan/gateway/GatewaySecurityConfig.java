@@ -44,12 +44,19 @@ public class GatewaySecurityConfig {
             new Rule("/api/managers", Role.TRAVELER),
             new Rule("/api/subscriptions", Role.TRAVELER),
             new Rule("/api/managed-travels", Role.TRAVEL_MANAGER),
+            new Rule("/api/feedback/mine", Role.TRAVELER),
+            new Rule("GET", "/api/feedback", Role.TRAVEL_MANAGER),
+            new Rule("/api/feedback", Role.TRAVELER),
+            new Rule("/api/reports", Role.TRAVELER),
+            new Rule("/api/admin/reports", Role.ADMIN),
             new Rule("GET", "/api/destinations", Role.TRAVELER),
             new Rule("/api/destinations", Role.ADMIN),
             new Rule("/api/subscription-payments", Role.TRAVELER),
             new Rule("/api/payment-options", Role.TRAVELER),
             new Rule("/api/payment-methods", Role.ADMIN),
-            new Rule("/api/payment-gateways", Role.ADMIN));
+            new Rule("/api/payment-gateways", Role.ADMIN),
+            new Rule("/api/search/admin", Role.ADMIN),
+            new Rule("/api/search", Role.TRAVELER));
 
     @Bean
     SecurityWebFilterChain gatewaySecurityChain(ServerHttpSecurity http) {

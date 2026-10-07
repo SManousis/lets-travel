@@ -3,6 +3,7 @@ import { api, errorMessage, newKey, type ApiContext, type Page } from "../../lib
 import type { ContractPage, Subscriber, TravelOffer } from "../../lib/types";
 import { Empty, Message } from "../../components/Shared";
 import { isActive, statusClass, statusLabels } from "./format";
+import { ReportForm } from "../reports/ReportForm";
 
 /**
  * Manager/admin subscriber lists. travel-service only lists a manager's own travels and
@@ -99,6 +100,8 @@ export function SubscriberManager({ context }: { context: ApiContext }) {
         <dt>Status</dt><dd>{statusLabels[profile.status]}</dd>
         {profile.cancellationReason && <><dt>Removal reason</dt><dd>{profile.cancellationReason}</dd></>}
       </dl>
+      <ReportForm key={profile.travelerId} context={context}
+        target={{ type: "TRAVELER", id: profile.travelerId, name: profile.displayName }} />
     </div>}
     {removing && <form className="field-grid" onSubmit={remove} aria-label="Unsubscribe traveler">
       <p>Unsubscribe {removing.displayName}? Their place is released. The reason is recorded in the audit trail.</p>

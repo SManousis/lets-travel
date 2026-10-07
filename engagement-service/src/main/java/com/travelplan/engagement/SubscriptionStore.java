@@ -147,6 +147,13 @@ class SubscriptionStore {
         return page("travel_id = ?", travelId, status, page, size);
     }
 
+    /** Every subscription (any state) the traveler has held on one travel. */
+    List<Subscription> forTravelerAndTravel(UUID travelerId, UUID travelId) {
+        requireAvailable();
+        return jdbc.query("SELECT " + COLUMNS + " FROM subscription WHERE traveler_id = ? AND travel_id = ?", ROW,
+                travelerId, travelId);
+    }
+
     long completedTrips(UUID travelerId) {
         requireAvailable();
         Long count = jdbc.queryForObject("SELECT COUNT(*) FROM subscription WHERE traveler_id = ? AND status = ?",

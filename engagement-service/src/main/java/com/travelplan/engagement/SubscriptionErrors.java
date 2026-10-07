@@ -13,7 +13,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /** Maps subscription failures to the platform error body {code, message, fieldErrors, traceId}. */
-@RestControllerAdvice(assignableTypes = {SubscriptionController.class, SubscriptionInternalController.class})
+@RestControllerAdvice(assignableTypes = {SubscriptionController.class, SubscriptionInternalController.class,
+        FeedbackController.class, ReportController.class})
 class SubscriptionErrors {
     private static final Logger log = LoggerFactory.getLogger(SubscriptionErrors.class);
 

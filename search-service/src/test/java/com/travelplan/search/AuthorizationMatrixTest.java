@@ -22,12 +22,17 @@ import static com.travelplan.common.testing.AuthorizationMatrix.endpoint;
 
 /** Every search-service endpoint, its minimum role, and proof that the rule holds when called directly. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"management.server.port=0", "security.internal-service-token=test-internal"})
+        properties = {"management.server.port=0", "security.internal-service-token=test-internal",
+                "services.travel.url=http://127.0.0.1:1", "spring.elasticsearch.uris=http://127.0.0.1:1"})
 class AuthorizationMatrixTest {
     private static final HttpServer AUTH = AuthorizationMatrix.activeSessionsAuthServer();
 
     static final List<Endpoint> MATRIX = List.of(
-);
+            endpoint("GET", "/api/search/travels", Access.TRAVELER),
+            endpoint("GET", "/api/search/autocomplete", Access.TRAVELER),
+            endpoint("GET", "/api/search/admin/status", Access.ADMIN),
+            endpoint("POST", "/api/search/admin/reindex", Access.ADMIN),
+            endpoint("POST", "/internal/search/index/travels/{travelId}", Access.INTERNAL));
 
     @Autowired ApplicationContext context;
     @Autowired AccessTokenCodec codec;

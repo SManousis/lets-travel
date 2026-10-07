@@ -34,6 +34,14 @@ class AuthorizationMatrixTest {
             endpoint("POST", "/api/subscriptions/{subscriptionId}/cancellation", Access.TRAVELER),
             endpoint("GET", "/api/managed-travels/{travelId}/subscribers", Access.TRAVEL_MANAGER),
             endpoint("POST", "/api/managed-travels/{travelId}/subscribers/{subscriptionId}/removal", Access.TRAVEL_MANAGER),
+            endpoint("POST", "/api/feedback", Access.TRAVELER),
+            endpoint("GET", "/api/feedback", Access.TRAVEL_MANAGER),
+            endpoint("GET", "/api/feedback/mine", Access.TRAVELER),
+            endpoint("POST", "/api/reports", Access.TRAVELER),
+            endpoint("GET", "/api/reports", Access.TRAVELER),
+            endpoint("GET", "/api/admin/reports", Access.ADMIN),
+            endpoint("GET", "/api/admin/reports/{reportId}", Access.ADMIN),
+            endpoint("PATCH", "/api/admin/reports/{reportId}", Access.ADMIN),
             endpoint("GET", "/internal/subscriptions/{subscriptionId}", Access.INTERNAL),
             endpoint("POST", "/internal/subscriptions/{subscriptionId}/payment-outcome", Access.INTERNAL)
     );

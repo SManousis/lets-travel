@@ -21,7 +21,11 @@ spring:
             - id: engagement
               uri: ${services.engagement.url}
               predicates:
-                - Path=/api/managers,/api/managers/**,/api/subscriptions,/api/subscriptions/**,/api/managed-travels,/api/managed-travels/**
+                - Path=/api/managers,/api/managers/**,/api/subscriptions,/api/subscriptions/**,/api/managed-travels,/api/managed-travels/**,/api/feedback,/api/feedback/**,/api/reports,/api/reports/**,/api/admin/reports,/api/admin/reports/**
+            - id: search
+              uri: ${services.search.url}
+              predicates:
+                - Path=/api/search,/api/search/**
             - id: payments
               uri: ${services.payments.url}
               predicates:
@@ -37,6 +41,8 @@ services:
     url: ${PAYMENT_SERVICE_URL:http://127.0.0.1:8084}
   engagement:
     url: ${ENGAGEMENT_SERVICE_URL:http://127.0.0.1:8085}
+  search:
+    url: ${SEARCH_SERVICE_URL:http://127.0.0.1:8086}
 auth:
   service-url: ${AUTH_SERVICE_URL:http://127.0.0.1:8081}
 server:

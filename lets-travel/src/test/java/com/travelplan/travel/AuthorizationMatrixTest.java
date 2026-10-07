@@ -42,6 +42,8 @@ class AuthorizationMatrixTest {
             endpoint("GET", "/internal/managers/{managerId}/travel-statistics", Access.INTERNAL),
             endpoint("POST", "/internal/travelers/cleanup", Access.INTERNAL),
             endpoint("GET", "/internal/travels/{travelId}", Access.INTERNAL),
+            endpoint("GET", "/internal/search/travels", Access.INTERNAL),
+            endpoint("GET", "/internal/search/travels/{travelId}", Access.INTERNAL),
             endpoint("POST", "/internal/travels/{travelId}/reservations", Access.INTERNAL),
             endpoint("DELETE", "/internal/travels/{travelId}/reservations/{travelerId}", Access.INTERNAL));
 

@@ -1,9 +1,31 @@
 spring:
   application:
     name: search-service
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://127.0.0.1:9200}
+    connection-timeout: 2s
+    socket-timeout: 5s
 server:
   address: ${SERVER_ADDRESS:127.0.0.1}
   port: ${SERVER_PORT:8086}
+auth:
+  service-url: ${AUTH_SERVICE_URL:http://127.0.0.1:8081}
+services:
+  travel:
+    url: ${TRAVEL_SERVICE_URL:http://127.0.0.1:8083}
+security:
+  token-secret: ${AUTH_TOKEN_SECRET:replace-with-at-least-32-random-characters}
+  internal-service-token: ${AUTH_INTERNAL_SERVICE_TOKEN:change-me-internal}
+# Index sync, see docs/search.md: queued travel changes are applied every second; the whole index is
+# rebuilt from travel-service every rebuild-interval (a failed rebuild is retried every 30 seconds).
+search:
+  elasticsearch:
+    request-timeout: 5s
+  sync:
+    apply-interval: PT1S
+    rebuild-interval: ${SEARCH_REBUILD_INTERVAL:PT5M}
+    rebuild-check-interval: PT30S
+    rebuild-initial-delay: PT5S
 management:
   server:
     address: ${MANAGEMENT_ADDRESS:127.0.0.1}
@@ -30,8 +52,6 @@ spring:
     uris: ${ELASTICSEARCH_URIS:http://elasticsearch:9200}
     username: ${ELASTICSEARCH_USERNAME:elastic}
     password: ${ELASTICSEARCH_PASSWORD:change-me-elasticsearch}
-    connection-timeout: 2s
-    socket-timeout: 5s
 management:
   health:
     elasticsearch:
