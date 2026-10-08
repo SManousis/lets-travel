@@ -105,6 +105,13 @@ class SubscriptionPaymentStore {
                 .sorted(Comparator.comparing(SubscriptionPayment::createdAt).reversed()).toList();
     }
 
+    /** Every subscription payment, for the dashboard totals check in engagement-service. */
+    List<SubscriptionPayment> all() {
+        if (jdbc != null) return jdbc.query("SELECT " + COLUMNS + " FROM subscription_payment ORDER BY created_at, payment_id", ROW);
+        return memory.values().stream().sorted(Comparator.comparing(SubscriptionPayment::createdAt)
+                .thenComparing(SubscriptionPayment::paymentId)).toList();
+    }
+
     /**
      * Work for the reconciliation job: lost provider answers, abandoned PROCESSING rows (older than
      * {@code staleBefore}), outcomes engagement-service has not received yet, and pending refunds.

@@ -21,7 +21,7 @@ spring:
             - id: engagement
               uri: ${services.engagement.url}
               predicates:
-                - Path=/api/managers,/api/managers/**,/api/subscriptions,/api/subscriptions/**,/api/managed-travels,/api/managed-travels/**,/api/feedback,/api/feedback/**,/api/reports,/api/reports/**,/api/admin/reports,/api/admin/reports/**
+                - Path=/api/managers,/api/managers/**,/api/subscriptions,/api/subscriptions/**,/api/managed-travels,/api/managed-travels/**,/api/feedback,/api/feedback/**,/api/reports,/api/reports/**,/api/admin/reports,/api/admin/reports/**,/api/dashboards,/api/dashboards/**
             - id: search
               uri: ${services.search.url}
               predicates:

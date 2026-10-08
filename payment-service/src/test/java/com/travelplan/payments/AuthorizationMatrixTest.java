@@ -43,7 +43,9 @@ class AuthorizationMatrixTest {
             endpoint("GET", "/api/payment-options", Access.TRAVELER),
             endpoint("POST", "/api/payment-webhooks/{provider}", Access.PUBLIC),
             endpoint("POST", "/internal/users/{userId}/payment-cleanup", Access.INTERNAL),
-            endpoint("POST", "/internal/subscriptions/{subscriptionId}/refund", Access.INTERNAL));
+            endpoint("POST", "/internal/subscriptions/{subscriptionId}/refund", Access.INTERNAL),
+            endpoint("GET", "/internal/users/{userId}/payment-usage", Access.INTERNAL),
+            endpoint("GET", "/internal/payment-totals", Access.INTERNAL));
 
     @Autowired ApplicationContext context;
     @Autowired AccessTokenCodec codec;
