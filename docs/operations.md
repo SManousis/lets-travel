@@ -6,7 +6,7 @@
 docker compose -f infra/compose/compose.yml up -d --scale user-service=2 user-service
 ```
 
-The base Compose file publishes gateway port `8080`, so two gateway replicas need a separately reviewed ingress/port override; the scale example above only tests user-service. See the [manual testing guide](audit/manual-testing-guide.md#8-replica-and-failure-checks) for the observed checks. Application health checks and private management ports are used for readiness. Database replication and failover remain separate concerns because named volumes do not provide database high availability.
+The base Compose file publishes gateway port `8080`, so two gateway replicas need a separately reviewed ingress/port override; the scale example above only tests user-service. The [failure drills](#failure-drills) check replica loss and recovery. Application health checks and private management ports are used for readiness. Database replication and failover remain separate concerns because named volumes do not provide database high availability.
 
 ## Upgrading an existing installation to persisted auth identities
 
