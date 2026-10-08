@@ -10,8 +10,10 @@ export type Traveler = {
 
 export type Destination = { id: string; name: string; country: string; createdAt: string };
 export type Stop = { id: string; destinationId: string; position: number; arrivalDate: string | null; departureDate: string | null };
-export type Activity = { id: string; name: string; description: string; date: string };
-export type Accommodation = { id: string; name: string; address: string; checkIn: string; checkOut: string };
+export type ActivityCategory = "CULTURE" | "NATURE" | "ADVENTURE" | "BEACH" | "FOOD" | "NIGHTLIFE" | "WELLNESS" | "SPORT";
+export type AccommodationCategory = "HOTEL" | "HOSTEL" | "APARTMENT" | "RESORT" | "CAMPING";
+export type Activity = { id: string; name: string; description: string; date: string; category: ActivityCategory | null };
+export type Accommodation = { id: string; name: string; address: string; checkIn: string; checkOut: string; category: AccommodationCategory | null };
 export type Transport = { id: string; mode: string; departure: string; arrival: string; date: string };
 export type Travel = {
   id: string; name: string; startDate: string; endDate: string; durationDays: number;

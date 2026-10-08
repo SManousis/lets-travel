@@ -25,6 +25,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/destinations", "/api/destinations/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/travels", "/api/travels/**").hasRole("TRAVELER")
                         .requestMatchers("/api/travels", "/api/travels/**").hasRole("TRAVEL_MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/recommendations").hasRole("TRAVELER")
+                        .requestMatchers("/api/admin/recommendations/**").hasRole("ADMIN")
                         .anyRequest().denyAll())
                 .build();
     }

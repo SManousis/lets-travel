@@ -15,8 +15,26 @@ public final class TravelDomain {
 
     public record Destination(UUID id, String name, String country, Instant createdAt) {}
     public record Stop(UUID id, UUID destinationId, int position, LocalDate arrivalDate, LocalDate departureDate) {}
-    public record Activity(UUID id, String name, String description, LocalDate date) {}
-    public record Accommodation(UUID id, String name, String address, LocalDate checkIn, LocalDate checkOut) {}
+    /** What kind of experience an activity is; one of the fields recommendations match on. */
+    public enum ActivityCategory { CULTURE, NATURE, ADVENTURE, BEACH, FOOD, NIGHTLIFE, WELLNESS, SPORT }
+
+    /** What kind of place a stay is; one of the fields recommendations match on. */
+    public enum AccommodationCategory { HOTEL, HOSTEL, APARTMENT, RESORT, CAMPING }
+
+    /** {@code category} is optional; travels created before categories existed have none. */
+    public record Activity(UUID id, String name, String description, LocalDate date, ActivityCategory category) {
+        public Activity(UUID id, String name, String description, LocalDate date) {
+            this(id, name, description, date, null);
+        }
+    }
+
+    /** {@code category} is optional; travels created before categories existed have none. */
+    public record Accommodation(UUID id, String name, String address, LocalDate checkIn, LocalDate checkOut,
+                                AccommodationCategory category) {
+        public Accommodation(UUID id, String name, String address, LocalDate checkIn, LocalDate checkOut) {
+            this(id, name, address, checkIn, checkOut, null);
+        }
+    }
     public record Transport(UUID id, String mode, String departure, String arrival, LocalDate date) {}
 
     public record Travel(

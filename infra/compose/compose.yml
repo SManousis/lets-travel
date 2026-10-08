@@ -119,6 +119,7 @@ services:
       AUTH_SERVICE_URL: http://auth-service:8081
       # Told about every travel change so the search index follows (docs/search.md).
       SEARCH_SERVICE_URL: http://search-service:8086
+      ENGAGEMENT_SERVICE_URL: http://engagement-service:8085
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-change-me-neo4j}
     depends_on:
       neo4j: { condition: service_healthy }
@@ -175,6 +176,7 @@ services:
       USER_SERVICE_URL: http://user-service:8082
       TRAVEL_SERVICE_URL: http://travel-service:8083
       PAYMENT_SERVICE_URL: http://payment-service:8084
+      EVENTS_RELAY_TARGET_URL: http://travel-service:8083
     depends_on:
       postgres: { condition: service_healthy }
       user-service: { condition: service_healthy }

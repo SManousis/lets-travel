@@ -181,6 +181,26 @@ was chosen instead (details in [search](search.md)):
 Writes use the travel version with `version_type=external_gte`, so a late write can
 never replace newer data.
 
+## Recommendation history delivery (Phase 7)
+
+This is the first outbox that is actually published. Instead of the pull feed described above,
+engagement-service **pushes** its outbox to its one consumer, travel-service:
+
+1. `OutboxRelay` (every second) reads up to 100 unpublished rows, oldest first, and posts them as
+   one batch of envelopes to `POST /internal/events` on travel-service (internal service token).
+2. Only after a `200` does it set `published_at` on those rows. On any failure it increments
+   `publish_attempts` and stops; the same rows are sent again on the next run, so nothing is lost
+   while travel-service or Neo4j is down.
+3. travel-service records each applied `eventId` (`ProcessedEvent` nodes, the inbox) and ignores a
+   subscription event whose `aggregateVersion` is not newer than the one it has (`SubscriptionState`).
+   Repeats and reordering are therefore harmless, including two relaying replicas.
+4. A reconciliation every 10 minutes compares the graph with engagement-service's current history and
+   repairs and reports any drift (details in [recommendations](recommendations.md)).
+
+A push relay was chosen because there is a single consumer. If a second consumer needs these events
+(for example dashboard projections in another service), `published_at` must become per consumer,
+or the pull feed above must be implemented.
+
 ## Rebuild
 
 Any projection can be rebuilt without downtime:

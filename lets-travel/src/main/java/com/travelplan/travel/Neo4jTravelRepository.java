@@ -340,6 +340,7 @@ final class Neo4jTravelRepository {
             values.put("name", activity.name());
             values.put("description", activity.description());
             values.put("date", date(activity.date()));
+            values.put("category", activity.category() == null ? null : activity.category().name());
             values.put("sequence", sequence++);
             createOwned(tx, travel.id(), "HAS_ACTIVITY", "Activity", values);
         }
@@ -351,6 +352,7 @@ final class Neo4jTravelRepository {
             values.put("address", stay.address());
             values.put("checkIn", date(stay.checkIn()));
             values.put("checkOut", date(stay.checkOut()));
+            values.put("category", stay.category() == null ? null : stay.category().name());
             values.put("sequence", sequence++);
             createOwned(tx, travel.id(), "HAS_ACCOMMODATION", "Accommodation", values);
         }
@@ -384,11 +386,13 @@ final class Neo4jTravelRepository {
         List<Activity> activities = record.get("activities").asList(value -> value.asNode()).stream()
                 .sorted(Comparator.comparingInt(node -> node.get("sequence").asInt(0)))
                 .map(node -> new Activity(uuid(node, "id"), node.get("name").asString(),
-                        node.get("description").asString(null), optionalDate(node, "date"))).toList();
+                        node.get("description").asString(null), optionalDate(node, "date"),
+                        category(node, TravelDomain.ActivityCategory.class))).toList();
         List<Accommodation> stays = record.get("accommodations").asList(value -> value.asNode()).stream()
                 .sorted(Comparator.comparingInt(node -> node.get("sequence").asInt(0)))
                 .map(node -> new Accommodation(uuid(node, "id"), node.get("name").asString(),
-                        node.get("address").asString(), optionalDate(node, "checkIn"), optionalDate(node, "checkOut"))).toList();
+                        node.get("address").asString(), optionalDate(node, "checkIn"), optionalDate(node, "checkOut"),
+                        category(node, TravelDomain.AccommodationCategory.class))).toList();
         List<Transport> transports = record.get("transports").asList(value -> value.asNode()).stream()
                 .sorted(Comparator.comparingInt(node -> node.get("sequence").asInt(0)))
                 .map(node -> new Transport(uuid(node, "id"), node.get("mode").asString(),
@@ -419,6 +423,13 @@ final class Neo4jTravelRepository {
 
     private static UUID uuid(Node node, String key) { return UUID.fromString(node.get(key).asString()); }
     private static String date(LocalDate value) { return value == null ? null : value.toString(); }
+    /** A stored category, or null when absent or no longer a known value. */
+    private static <E extends Enum<E>> E category(Node node, Class<E> type) {
+        String value = node.get("category").asString(null);
+        if (value == null) return null;
+        try { return Enum.valueOf(type, value); } catch (IllegalArgumentException unknown) { return null; }
+    }
+
     private static LocalDate optionalDate(Node node, String key) {
         return node.get(key).isNull() ? null : LocalDate.parse(node.get(key).asString());
     }

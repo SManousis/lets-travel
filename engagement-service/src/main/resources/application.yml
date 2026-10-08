@@ -18,6 +18,12 @@ services:
     url: ${TRAVEL_SERVICE_URL:http://127.0.0.1:8083}
   payments:
     url: ${PAYMENT_SERVICE_URL:http://127.0.0.1:8084}
+# Outbox events are delivered to travel-service (recommendation history); empty disables the relay.
+events:
+  relay:
+    target-url: ${EVENTS_RELAY_TARGET_URL:}
+    interval: ${EVENTS_RELAY_INTERVAL:PT1S}
+    initial-delay: ${EVENTS_RELAY_INITIAL_DELAY:PT10S}
 management:
   server:
     address: ${MANAGEMENT_ADDRESS:127.0.0.1}

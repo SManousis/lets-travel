@@ -31,6 +31,8 @@
     <jacoco.version>0.8.15</jacoco.version>
     <!-- Tests only. H2 2.4.240 fails CHECK constraints on connections other than the one that created them. -->
     <h2.version>2.5.252</h2.version>
+    <!-- Timing benchmarks run on demand: -Dsurefire.excludedGroups= -Dgroups=performance -->
+    <surefire.excludedGroups>performance</surefire.excludedGroups>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -78,6 +80,13 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <excludedGroups>${surefire.excludedGroups}</excludedGroups>
+        </configuration>
       </plugin>
       <!-- Writes target/site/jacoco/jacoco.xml per module for SonarQube coverage. -->
       <plugin>

@@ -70,6 +70,8 @@ class GatewayRoleMatrixTest {
         MATRIX.put("/api/search/autocomplete", Role.TRAVELER);
         MATRIX.put("/api/search/admin/status", Role.ADMIN);
         MATRIX.put("/api/search/admin/reindex", Role.ADMIN);
+        MATRIX.put("/api/recommendations", Role.TRAVELER);
+        MATRIX.put("/api/admin/recommendations", Role.ADMIN);
     }
 
     @Autowired RouteDefinitionLocator routes;

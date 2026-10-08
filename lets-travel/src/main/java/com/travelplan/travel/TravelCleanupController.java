@@ -1,5 +1,7 @@
 package com.travelplan.travel;
 
+import com.travelplan.travel.recommend.RecommendationService;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HashSet;
@@ -18,10 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 final class TravelCleanupController {
     private final TravelStore store;
     private final byte[] serviceToken;
+    private final RecommendationService recommendations;
 
-    TravelCleanupController(TravelStore store,
+    TravelCleanupController(TravelStore store, RecommendationService recommendations,
             @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
         this.store = store;
+        this.recommendations = recommendations;
         this.serviceToken = serviceToken.getBytes(StandardCharsets.UTF_8);
     }
 
@@ -32,6 +36,7 @@ final class TravelCleanupController {
             return ResponseEntity.status(403).build();
         if (travelerIds == null || travelerIds.contains(null)) return ResponseEntity.badRequest().build();
         store.removeParticipants(new HashSet<>(travelerIds));
+        recommendations.forgetUsers(new HashSet<>(travelerIds));
         return ResponseEntity.noContent().build();
     }
 

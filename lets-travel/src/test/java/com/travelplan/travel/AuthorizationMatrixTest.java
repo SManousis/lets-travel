@@ -45,7 +45,11 @@ class AuthorizationMatrixTest {
             endpoint("GET", "/internal/search/travels", Access.INTERNAL),
             endpoint("GET", "/internal/search/travels/{travelId}", Access.INTERNAL),
             endpoint("POST", "/internal/travels/{travelId}/reservations", Access.INTERNAL),
-            endpoint("DELETE", "/internal/travels/{travelId}/reservations/{travelerId}", Access.INTERNAL));
+            endpoint("DELETE", "/internal/travels/{travelId}/reservations/{travelerId}", Access.INTERNAL),
+            endpoint("GET", "/api/recommendations", Access.TRAVELER),
+            endpoint("GET", "/api/admin/recommendations/status", Access.ADMIN),
+            endpoint("POST", "/api/admin/recommendations/reconcile", Access.ADMIN),
+            endpoint("POST", "/internal/events", Access.INTERNAL));
 
     @Autowired ApplicationContext context;
     @Autowired AccessTokenCodec codec;

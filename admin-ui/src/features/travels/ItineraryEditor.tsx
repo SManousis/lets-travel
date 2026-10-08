@@ -1,10 +1,17 @@
 import * as React from "react";
-import type { Destination, Travel } from "../../lib/types";
+import type { AccommodationCategory, ActivityCategory, Destination, Travel } from "../../lib/types";
 import { Message } from "../../components/Shared";
 
 type StopDraft = { destinationId: string; arrivalDate: string; departureDate: string };
-type ActivityDraft = { name: string; description: string; date: string };
-type StayDraft = { name: string; address: string; checkIn: string; checkOut: string };
+type ActivityDraft = { name: string; description: string; date: string; category: ActivityCategory | "" };
+type StayDraft = { name: string; address: string; checkIn: string; checkOut: string; category: AccommodationCategory | "" };
+
+// Categories and transport modes are what personalized recommendations match on.
+const activityCategories: Record<ActivityCategory, string> = { CULTURE: "Culture", NATURE: "Nature", ADVENTURE: "Adventure",
+  BEACH: "Beach", FOOD: "Food", NIGHTLIFE: "Nightlife", WELLNESS: "Wellness", SPORT: "Sport" };
+const stayCategories: Record<AccommodationCategory, string> = { HOTEL: "Hotel", HOSTEL: "Hostel", APARTMENT: "Apartment",
+  RESORT: "Resort", CAMPING: "Camping" };
+const transportModes = ["PLANE", "TRAIN", "BUS", "CAR", "BOAT"];
 type TransportDraft = { mode: string; departure: string; arrival: string; date: string };
 
 export type TravelDraft = {
@@ -22,8 +29,10 @@ export function fromTravel(travel: Travel): TravelDraft {
     stops: [...travel.stops].sort((a, b) => a.position - b.position).map(stop => ({
       destinationId: stop.destinationId, arrivalDate: stop.arrivalDate ?? "", departureDate: stop.departureDate ?? "",
     })),
-    activities: travel.activities.map(activity => ({ name: activity.name, description: activity.description ?? "", date: activity.date })),
-    accommodations: travel.accommodations.map(stay => ({ name: stay.name, address: stay.address, checkIn: stay.checkIn, checkOut: stay.checkOut })),
+    activities: travel.activities.map(activity => ({ name: activity.name, description: activity.description ?? "", date: activity.date,
+      category: activity.category ?? "" })),
+    accommodations: travel.accommodations.map(stay => ({ name: stay.name, address: stay.address, checkIn: stay.checkIn,
+      checkOut: stay.checkOut, category: stay.category ?? "" })),
     transports: travel.transports.map(transport => ({ mode: transport.mode, departure: transport.departure, arrival: transport.arrival, date: transport.date })),
   };
 }
@@ -32,7 +41,9 @@ export function travelPayload(draft: TravelDraft) {
   return { name: draft.name, startDate: draft.startDate, endDate: draft.endDate,
     stops: draft.stops.map((stop, position) => ({ destinationId: stop.destinationId, position,
       arrivalDate: stop.arrivalDate || null, departureDate: stop.departureDate || null })),
-    activities: draft.activities, accommodations: draft.accommodations, transports: draft.transports };
+    activities: draft.activities.map(activity => ({ ...activity, category: activity.category || null })),
+    accommodations: draft.accommodations.map(stay => ({ ...stay, category: stay.category || null })),
+    transports: draft.transports };
 }
 
 export function ItineraryEditor({ draft, onChange, destinations, onSubmit, onCancel, busy, error }:
@@ -78,26 +89,35 @@ export function ItineraryEditor({ draft, onChange, destinations, onSubmit, onCan
         <button type="button" className="danger" disabled={draft.stops.length === 1} onClick={() => removeRow("stops", index)}>Remove</button></div>
     </div>)}
     <div className="subsection-heading"><h4>Activities</h4><button type="button" onClick={() => onChange({ ...draft,
-      activities: [...draft.activities, { name: "", description: "", date: draft.startDate }] })}>Add activity</button></div>
+      activities: [...draft.activities, { name: "", description: "", date: draft.startDate, category: "" }] })}>Add activity</button></div>
     {draft.activities.map((activity, index) => <div className="nested-row" key={`activity-${index}`}>
       <label>Name<input required value={activity.name} onChange={event => updateRow("activities", index, { ...activity, name: event.target.value })} /></label>
       <label>Description<input value={activity.description} onChange={event => updateRow("activities", index, { ...activity, description: event.target.value })} /></label>
+      <label>Kind<select value={activity.category} onChange={event => updateRow("activities", index, { ...activity, category: event.target.value as ActivityDraft["category"] })}>
+        <option value="">Not set</option>
+        {(Object.keys(activityCategories) as ActivityCategory[]).map(value => <option key={value} value={value}>{activityCategories[value]}</option>)}
+      </select></label>
       <label>Date<input required type="date" min={draft.startDate || undefined} max={draft.endDate || undefined} value={activity.date} onChange={event => updateRow("activities", index, { ...activity, date: event.target.value })} /></label>
       <button type="button" className="danger" onClick={() => removeRow("activities", index)}>Remove</button>
     </div>)}
     <div className="subsection-heading"><h4>Accommodation</h4><button type="button" onClick={() => onChange({ ...draft,
-      accommodations: [...draft.accommodations, { name: "", address: "", checkIn: draft.startDate, checkOut: draft.endDate }] })}>Add stay</button></div>
+      accommodations: [...draft.accommodations, { name: "", address: "", checkIn: draft.startDate, checkOut: draft.endDate, category: "" }] })}>Add stay</button></div>
     {draft.accommodations.map((stay, index) => <div className="nested-row" key={`stay-${index}`}>
       <label>Name<input required value={stay.name} onChange={event => updateRow("accommodations", index, { ...stay, name: event.target.value })} /></label>
       <label>Address<input required value={stay.address} onChange={event => updateRow("accommodations", index, { ...stay, address: event.target.value })} /></label>
+      <label>Type<select value={stay.category} onChange={event => updateRow("accommodations", index, { ...stay, category: event.target.value as StayDraft["category"] })}>
+        <option value="">Not set</option>
+        {(Object.keys(stayCategories) as AccommodationCategory[]).map(value => <option key={value} value={value}>{stayCategories[value]}</option>)}
+      </select></label>
       <label>Check in<input required type="date" min={draft.startDate || undefined} max={draft.endDate || undefined} value={stay.checkIn} onChange={event => updateRow("accommodations", index, { ...stay, checkIn: event.target.value })} /></label>
       <label>Check out<input required type="date" min={draft.startDate || undefined} max={draft.endDate || undefined} value={stay.checkOut} onChange={event => updateRow("accommodations", index, { ...stay, checkOut: event.target.value })} /></label>
       <button type="button" className="danger" onClick={() => removeRow("accommodations", index)}>Remove</button>
     </div>)}
+    <datalist id="transport-modes">{transportModes.map(mode => <option key={mode} value={mode} />)}</datalist>
     <div className="subsection-heading"><h4>Transportation</h4><button type="button" onClick={() => onChange({ ...draft,
       transports: [...draft.transports, { mode: "", departure: "", arrival: "", date: draft.startDate }] })}>Add transport</button></div>
     {draft.transports.map((transport, index) => <div className="nested-row" key={`transport-${index}`}>
-      <label>Mode<input required value={transport.mode} onChange={event => updateRow("transports", index, { ...transport, mode: event.target.value })} /></label>
+      <label>Mode<input required list="transport-modes" value={transport.mode} onChange={event => updateRow("transports", index, { ...transport, mode: event.target.value })} /></label>
       <label>Departure<input required value={transport.departure} onChange={event => updateRow("transports", index, { ...transport, departure: event.target.value })} /></label>
       <label>Arrival<input required value={transport.arrival} onChange={event => updateRow("transports", index, { ...transport, arrival: event.target.value })} /></label>
       <label>Date<input required type="date" min={draft.startDate || undefined} max={draft.endDate || undefined} value={transport.date} onChange={event => updateRow("transports", index, { ...transport, date: event.target.value })} /></label>

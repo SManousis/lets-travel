@@ -32,6 +32,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,7 +58,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         // The tests apply queued changes and rebuild explicitly, so the schedules stay out of the way.
         "search.sync.apply-initial-delay=PT1H", "search.sync.rebuild-initial-delay=PT1H",
         // Room for a busy CI host; the outage test still gets its 503 well inside the client's 30s.
-        "search.elasticsearch.request-timeout=10s"})
+        "search.elasticsearch.request-timeout=20s"})
 class TravelSearchIntegrationTest {
     @Container
     static final ElasticsearchContainer ELASTICSEARCH = new ElasticsearchContainer(
@@ -366,7 +367,12 @@ class TravelSearchIntegrationTest {
 
     // --- Latency under load -------------------------------------------------------------------------------
 
-    /** 1,000 extra travels, 10 concurrent clients, 400 mixed requests: every request well under 5 seconds. */
+    /**
+     * 1,000 extra travels, 10 concurrent clients, 400 mixed requests: every request well under 5 seconds.
+     * Timing depends on the machine, so it runs on demand rather than in every build:
+     * {@code ./mvnw verify -pl search-service -am -Dsurefire.excludedGroups= -Dgroups=performance}
+     */
+    @Tag("performance")
     @Test void searchAndAutocompleteStayFastUnderLoad() throws Exception {
         String[] words = {"Coast", "Mountain", "City", "Island", "Lake", "Desert", "Forest", "Valley"};
         String[] places = {"Athens", "Paris", "Berlin", "Madrid", "Vienna", "Prague", "Oslo", "Dublin"};

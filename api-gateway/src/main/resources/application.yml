@@ -17,7 +17,7 @@ spring:
             - id: travel
               uri: ${services.travel.url}
               predicates:
-                - Path=/api/travels,/api/travels/**,/api/destinations,/api/destinations/**
+                - Path=/api/travels,/api/travels/**,/api/destinations,/api/destinations/**,/api/recommendations,/api/admin/recommendations,/api/admin/recommendations/**
             - id: engagement
               uri: ${services.engagement.url}
               predicates:

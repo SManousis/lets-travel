@@ -55,6 +55,8 @@ public class GatewaySecurityConfig {
             new Rule("/api/payment-options", Role.TRAVELER),
             new Rule("/api/payment-methods", Role.ADMIN),
             new Rule("/api/payment-gateways", Role.ADMIN),
+            new Rule("/api/recommendations", Role.TRAVELER),
+            new Rule("/api/admin/recommendations", Role.ADMIN),
             new Rule("/api/search/admin", Role.ADMIN),
             new Rule("/api/search", Role.TRAVELER));
 
