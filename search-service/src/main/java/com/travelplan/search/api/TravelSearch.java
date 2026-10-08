@@ -75,7 +75,7 @@ public class TravelSearch {
      * then every word with typo tolerance (fuzzy). A travel matching a higher tier scores higher, so exact
      * and prefix matches rank above fuzzy ones. An empty text matches everything.
      */
-    private static Map<String, Object> textQuery(String text) {
+    static Map<String, Object> textQuery(String text) {
         if (text == null) return Map.of("match_all", Map.of());
         return Map.of("bool", Map.of("minimum_should_match", 1, "should", List.of(
                 Map.of("multi_match", Map.of("query", text, "type", "phrase", "fields", TEXT_FIELDS, "boost", 6)),

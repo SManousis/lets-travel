@@ -28,6 +28,7 @@ class AuthProvisioningTest {
     private static final String PASSWORD = "Strong-Secret-1!";
     @Value("${local.server.port}") int port;
     @Autowired TokenService tokens;
+    @Autowired com.travelplan.auth.security.ProvisionedIdentityStore identities;
     private final JsonMapper json = JsonMapper.builder().build();
 
     @Test void bootstrapAdminIsARealIdentityWithAUuidSubject() throws Exception {
@@ -44,6 +45,20 @@ class AuthProvisioningTest {
         AccessToken token = verify(login(username, PASSWORD));
         assertThat(token.userId()).isEqualTo(id);
         assertThat(token.role()).isEqualTo(Role.TRAVEL_MANAGER);
+    }
+
+    @Test void passwordsAreStoredAsSaltedBcryptAndOldHashesAreUpgradedAtSignIn() throws Exception {
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        provision(first, "first-" + first + "@example.com", "TRAVELER");
+        provision(second, "second-" + second + "@example.com", "TRAVELER");
+        String hash = identities.findBySubject(first).orElseThrow().passwordHash();
+        assertThat(hash).startsWith("$2a$12$").doesNotContain(PASSWORD);
+        assertThat(identities.findBySubject(second).orElseThrow().passwordHash()).as("salted per password").isNotEqualTo(hash);
+
+        identities.updatePassword(first, new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4).encode(PASSWORD));
+        assertThat(login("first-" + first + "@example.com", PASSWORD).statusCode()).isEqualTo(200);
+        assertThat(identities.findBySubject(first).orElseThrow().passwordHash()).startsWith("$2a$12$");
     }
 
     @Test void legacyOrUnknownRolesAreRejected() throws Exception {

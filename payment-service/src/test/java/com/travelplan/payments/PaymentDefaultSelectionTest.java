@@ -23,7 +23,8 @@ class PaymentDefaultSelectionTest {
         store = new PaymentStore();
         mvc = MockMvcBuilders.standaloneSetup(new PaymentController(store, List.of(),
                 new PaymentDeletionService(store, List.of()),
-                new PaymentUserClient("http://127.0.0.1:1", "test"))).build();
+                new PaymentUserClient("http://127.0.0.1:1", "test"),
+                new com.travelplan.common.audit.AuditLog("payment-service", List.of(), java.time.Clock.systemUTC()))).build();
         userId = UUID.randomUUID();
         gatewayId = store.createGateway("STRIPE", "Sandbox").id();
     }

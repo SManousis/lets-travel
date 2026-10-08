@@ -96,6 +96,7 @@ services:
       AUTH_INTERNAL_SERVICE_TOKEN: "${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}"
       PAYMENT_SERVICE_URL: http://payment-service:8084
       TRAVEL_SERVICE_URL: http://travel-service:8083
+      ENGAGEMENT_SERVICE_URL: http://engagement-service:8085
       AUTH_SERVICE_URL: http://auth-service:8081
     depends_on:
       postgres: { condition: service_healthy }

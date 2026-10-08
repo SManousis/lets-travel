@@ -48,6 +48,7 @@ class AuthorizationMatrixTest {
             endpoint("GET", "/internal/subscriptions/{subscriptionId}", Access.INTERNAL),
             endpoint("POST", "/internal/subscriptions/{subscriptionId}/payment-outcome", Access.INTERNAL),
             endpoint("GET", "/internal/recommendation-history", Access.INTERNAL),
+            endpoint("POST", "/internal/users/{userId}/personal-data-cleanup", Access.INTERNAL),
             endpoint("GET", "/api/dashboards/me", Access.TRAVELER),
             endpoint("GET", "/api/dashboards/manager", Access.TRAVEL_MANAGER),
             endpoint("GET", "/api/dashboards/admin", Access.ADMIN),

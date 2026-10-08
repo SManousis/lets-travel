@@ -36,6 +36,12 @@
       <artifactId>spring-security-web</artifactId>
       <optional>true</optional>
     </dependency>
+    <!-- Audit records are written to the service's own database when it has one (AuditLog). -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-jdbc</artifactId>
+      <optional>true</optional>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>

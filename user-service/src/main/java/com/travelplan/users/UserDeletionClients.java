@@ -18,16 +18,30 @@ import org.springframework.stereotype.Component;
 @Component
 final class UserDeletionClients {
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+    private final String engagementUrl;
     private final String paymentUrl;
     private final String travelUrl;
     private final String serviceToken;
 
     UserDeletionClients(@Value("${services.payment.url:http://127.0.0.1:8084}") String paymentUrl,
                         @Value("${services.travel.url:http://127.0.0.1:8083}") String travelUrl,
+                        @Value("${services.engagement.url:http://127.0.0.1:8085}") String engagementUrl,
                         @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
+        this.engagementUrl = ServiceUrls.withoutTrailingSlashes(engagementUrl);
         this.paymentUrl = ServiceUrls.withoutTrailingSlashes(paymentUrl);
         this.travelUrl = ServiceUrls.withoutTrailingSlashes(travelUrl);
         this.serviceToken = serviceToken;
+    }
+
+    /** Cancels the person's subscriptions (refunding paid ones) and anonymizes their feedback; false while refunds wait. */
+    boolean cleanupEngagement(UUID userId) {
+        var request = HttpRequest.newBuilder(URI.create(engagementUrl + "/internal/users/" + userId + "/personal-data-cleanup"))
+                .timeout(Duration.ofSeconds(30)).header("X-Internal-Service-Token", serviceToken)
+                .POST(HttpRequest.BodyPublishers.noBody()).build();
+        int status = send(request);
+        if (status == 204) return true;
+        if (status == 202) return false;
+        throw new Unavailable("ENGAGEMENT_CLEANUP_UNAVAILABLE");
     }
 
     boolean cleanupPayments(UUID userId) {

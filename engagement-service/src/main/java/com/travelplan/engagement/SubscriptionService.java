@@ -100,6 +100,23 @@ class SubscriptionService {
                 caller.userId(), null, null, "SubscriptionCancelled"));
     }
 
+    /**
+     * Account deletion: every active subscription of the person is cancelled regardless of the cutoff, its place
+     * given back and, if paid, refunded in full. Returns false while a refund request is still waiting for
+     * payment-service, so the deletion is retried until everything is settled.
+     */
+    boolean closeAccount(UUID travelerId) {
+        for (Subscription subscription : store.mine(travelerId, null, 0, 10_000).items()) {
+            if (subscription.status().active()) {
+                change(subscription, Subscription.Status.ACTIVE, new SubscriptionStore.Change(Subscription.Status.CANCELLED_BY_TRAVELER,
+                        null, "Account deleted", null, "SubscriptionCancelled"));
+            } else if (subscription.refundDue()) {
+                finishSideEffects(subscription);
+            }
+        }
+        return store.refundsDue().stream().noneMatch(due -> due.travelerId().equals(travelerId));
+    }
+
     /** Manager or admin removal of a subscriber. Not bound by the traveler cutoff; needs a reason. */
     Subscription removeByManager(AccessToken caller, UUID travelId, UUID subscriptionId, String reason) {
         requireManagedTravel(caller, travelId);

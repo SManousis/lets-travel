@@ -3,6 +3,7 @@ package com.travelplan.auth.security;
 import com.travelplan.common.security.ServiceSecurity;
 import com.travelplan.common.security.SessionChecker;
 import com.travelplan.common.security.TokenAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -13,9 +14,13 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class AuthSecurityConfig {
 
+    /**
+     * BCrypt (adaptive, salted per password). Raising the cost later is safe: older hashes still verify and
+     * are re-hashed at the new cost on the user's next successful sign-in (see AuthController#login).
+     */
     @Bean
-    PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    PasswordEncoder passwordEncoder(@Value("${auth.password.bcrypt-cost:12}") int cost) {
+        return new BCryptPasswordEncoder(cost);
     }
 
     /** auth-service owns the sessions, so it checks them directly instead of calling itself. */

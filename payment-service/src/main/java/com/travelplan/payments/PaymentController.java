@@ -1,5 +1,6 @@
 package com.travelplan.payments;
 
+import com.travelplan.common.audit.AuditLog;
 import com.travelplan.payments.PaymentDomain.Conflict;
 import com.travelplan.payments.PaymentDomain.Gateway;
 import com.travelplan.payments.PaymentDomain.InvalidRequest;
@@ -40,9 +41,11 @@ public final class PaymentController {
     private final Map<String, ProviderAdapter> adapters;
     private final PaymentDeletionService deletion;
     private final PaymentUserClient users;
+    private final AuditLog audit;
 
     public PaymentController(PaymentStore store, List<ProviderAdapter> providers,
-                             PaymentDeletionService deletion, PaymentUserClient users) {
+                             PaymentDeletionService deletion, PaymentUserClient users, AuditLog audit) {
+        this.audit = audit;
         this.store = store;
         this.deletion = deletion;
         this.users = users;
@@ -56,7 +59,9 @@ public final class PaymentController {
     @PostMapping("/api/payment-gateways")
     ResponseEntity<Gateway> createGateway(@Valid @RequestBody GatewayWrite body) {
         String provider = provider(body.provider());
-        return ResponseEntity.status(HttpStatus.CREATED).body(store.createGateway(provider, body.displayName()));
+        Gateway created = store.createGateway(provider, body.displayName());
+        audit.record("PAYMENT_GATEWAY_CREATED", "PAYMENT_GATEWAY", created.id(), Map.of("provider", provider));
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/api/payment-gateways/{id}")
@@ -64,12 +69,17 @@ public final class PaymentController {
 
     @PatchMapping("/api/payment-gateways/{id}")
     Gateway updateGateway(@PathVariable UUID id, @Valid @RequestBody GatewayWrite body) {
-        return store.updateGateway(id, provider(body.provider()), body.displayName());
+        Gateway updated = store.updateGateway(id, provider(body.provider()), body.displayName());
+        audit.record("PAYMENT_GATEWAY_UPDATED", "PAYMENT_GATEWAY", id, Map.of("provider", updated.provider()));
+        return updated;
     }
 
     @DeleteMapping("/api/payment-gateways/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deleteGateway(@PathVariable UUID id) { store.deleteGateway(id); }
+    void deleteGateway(@PathVariable UUID id) {
+        store.deleteGateway(id);
+        audit.record("PAYMENT_GATEWAY_DELETED", "PAYMENT_GATEWAY", id);
+    }
 
     @GetMapping("/api/payment-methods")
     List<MethodView> methods(@RequestParam(required = false) UUID userId) {
@@ -132,7 +142,9 @@ public final class PaymentController {
 
     @DeleteMapping("/api/payment-methods/{id}")
     ResponseEntity<Void> deleteMethod(@PathVariable UUID id, @RequestHeader("Idempotency-Key") UUID key) {
-        return deletion.delete(id, key) ? ResponseEntity.noContent().build() : ResponseEntity.accepted().build();
+        boolean finished = deletion.delete(id, key);
+        audit.record("PAYMENT_METHOD_DELETED", "PAYMENT_METHOD", id, Map.of("completed", finished));
+        return finished ? ResponseEntity.noContent().build() : ResponseEntity.accepted().build();
     }
 
     private ProviderAdapter adapter(String provider) {

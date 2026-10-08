@@ -1,5 +1,6 @@
 package com.travelplan.engagement;
 
+import com.travelplan.common.audit.AuditLog;
 import com.travelplan.common.security.AccessToken;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -25,10 +26,12 @@ import org.springframework.web.bind.annotation.RestController;
 class ReportController {
     private final ReportService reports;
     private final ReportStore store;
+    private final AuditLog audit;
 
-    ReportController(ReportService reports, ReportStore store) {
+    ReportController(ReportService reports, ReportStore store, AuditLog audit) {
         this.reports = reports;
         this.store = store;
+        this.audit = audit;
     }
 
     @PostMapping("/api/reports")
@@ -71,7 +74,11 @@ class ReportController {
     @PatchMapping("/api/admin/reports/{reportId}")
     ReportDetail moderate(@AuthenticationPrincipal AccessToken caller, @PathVariable UUID reportId,
                           @Valid @RequestBody ModerationUpdate body) {
-        return detail(reports.moderate(caller, reportId, body.status(), Boolean.TRUE.equals(body.assignToSelf()), body.note()));
+        ReportStore.Report moderated = reports.moderate(caller, reportId, body.status(), Boolean.TRUE.equals(body.assignToSelf()), body.note());
+        // The note stays in the report's own history; the audit record keeps only the decision.
+        audit.record("REPORT_MODERATED", "REPORT", reportId, java.util.Map.of("status", moderated.status(),
+                "target", moderated.targetType() + ":" + moderated.targetId()));
+        return detail(moderated);
     }
 
     private ReportDetail detail(ReportStore.Report report) {

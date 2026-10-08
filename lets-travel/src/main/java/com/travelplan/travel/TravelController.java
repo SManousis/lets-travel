@@ -1,5 +1,6 @@
 package com.travelplan.travel;
 
+import com.travelplan.common.audit.AuditLog;
 import com.travelplan.common.security.AccessToken;
 import com.travelplan.common.security.Role;
 import jakarta.validation.Valid;
@@ -15,6 +16,7 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.neo4j.driver.exceptions.Neo4jException;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,9 +42,11 @@ public class TravelController {
     private final TravelStore store;
     private final ManagerIdentityClient managers;
     private final byte[] serviceToken;
+    private final AuditLog audit;
 
     public TravelController(TravelStore store, ManagerIdentityClient managers,
-            @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
+            @Value("${security.internal-service-token:change-me-internal}") String serviceToken, AuditLog audit) {
+        this.audit = audit;
         this.store = store;
         this.managers = managers;
         this.serviceToken = serviceToken.getBytes(StandardCharsets.UTF_8);
@@ -69,7 +73,10 @@ public class TravelController {
 
     @DeleteMapping("/api/destinations/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deleteDestination(@PathVariable UUID id) { store.deleteDestination(id); }
+    void deleteDestination(@PathVariable UUID id) {
+        store.deleteDestination(id);
+        audit.record("DESTINATION_DELETED", "DESTINATION", id);
+    }
 
     @GetMapping("/api/travels")
     Page<TravelView> travels(@AuthenticationPrincipal AccessToken access,
@@ -98,6 +105,9 @@ public class TravelController {
                 body.endDate(), body.capacity(), body.price(), body.currency(), stops(body.stops()),
                 activities(body.activities()), accommodations(body.accommodations()), transports(body.transports()),
                 body.timeZone());
+        // Ownership is fixed at creation; record who it was given to, and by whom when an admin assigned it.
+        audit.record("TRAVEL_CREATED", "TRAVEL", travel.id(), Map.of("managerId", managerId,
+                "assignedByAdmin", access.role() == Role.ADMIN));
         return ResponseEntity.status(HttpStatus.CREATED).body(view(travel));
     }
 
@@ -118,8 +128,9 @@ public class TravelController {
     @DeleteMapping("/api/travels/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void deleteTravel(@AuthenticationPrincipal AccessToken access, @PathVariable UUID id) {
-        authorized(id, access, true);
+        TravelDomain.Travel travel = authorized(id, access, true);
         store.delete(id);
+        audit.record("TRAVEL_DELETED", "TRAVEL", id, Map.of("managerId", travel.managerId()));
     }
 
     @PostMapping("/api/travels/{id}/publication")

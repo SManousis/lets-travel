@@ -33,8 +33,13 @@ final class UserDeletionService {
                     store.advanceDeletion(id, "STARTED", "REVOKED");
                 }
                 case "REVOKED" -> {
+                    // Before payments: cancelling paid subscriptions asks payment-service for their refunds.
+                    if (!clients.cleanupEngagement(id)) return false;
+                    store.advanceDeletion(id, "REVOKED", "ENGAGEMENT_CLEAN");
+                }
+                case "ENGAGEMENT_CLEAN" -> {
                     if (!clients.cleanupPayments(id)) return false;
-                    store.advanceDeletion(id, "REVOKED", "PAYMENTS_CLEAN");
+                    store.advanceDeletion(id, "ENGAGEMENT_CLEAN", "PAYMENTS_CLEAN");
                 }
                 case "PAYMENTS_CLEAN" -> {
                     // Seat reservations and travel history are keyed by the account ID, profiles by their own IDs.

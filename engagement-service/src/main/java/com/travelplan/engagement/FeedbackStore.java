@@ -23,6 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Repository
 class FeedbackStore {
+    static final String FORMER_TRAVELER = "Former traveler";
     private static final String COLUMNS = "feedback_id, subscription_id, travel_id, traveler_id, manager_id, travel_title, "
             + "author_display_name, rating, comment, idempotency_key, created_at";
     private static final RowMapper<Feedback> ROW = FeedbackStore::map;
@@ -80,6 +81,16 @@ class FeedbackStore {
             payload.put("rating", feedback.rating());
             Outbox.write(jdbc, "FeedbackSubmitted", feedback.feedbackId(), 1, feedback.createdAt(), payload);
         });
+    }
+
+    /**
+     * Account deletion: the rating stays (it is part of the manager's statistics) but no longer carries the
+     * author's name or their own words.
+     */
+    int anonymizeAuthor(UUID travelerId) {
+        requireAvailable();
+        return jdbc.update("UPDATE feedback SET author_display_name = ?, comment = NULL WHERE traveler_id = ?",
+                FORMER_TRAVELER, travelerId);
     }
 
     /** Feedback newest first; each filter is optional (null means "any"). */

@@ -1,5 +1,6 @@
 package com.travelplan.engagement;
 
+import com.travelplan.common.audit.AuditLog;
 import com.travelplan.common.security.AccessToken;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -27,10 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
 class SubscriptionController {
     private final SubscriptionService subscriptions;
     private final Clock clock;
+    private final AuditLog audit;
 
-    SubscriptionController(SubscriptionService subscriptions, Clock clock) {
+    SubscriptionController(SubscriptionService subscriptions, Clock clock, AuditLog audit) {
         this.subscriptions = subscriptions;
         this.clock = clock;
+        this.audit = audit;
     }
 
     @PostMapping("/api/subscriptions")
@@ -83,7 +86,10 @@ class SubscriptionController {
         idempotencyKey(key);
         String reason = body.reason().trim();
         if (reason.length() < 3) throw new SubscriptionService.Failure(400, "VALIDATION_ERROR", "A reason of at least 3 characters is required");
-        return view(subscriptions.removeByManager(caller, travelId, subscriptionId, reason));
+        Subscription removed = subscriptions.removeByManager(caller, travelId, subscriptionId, reason);
+        audit.record("SUBSCRIBER_REMOVED", "SUBSCRIPTION", subscriptionId, java.util.Map.of("travelId", travelId,
+                "travelerId", removed.travelerId()));
+        return view(removed);
     }
 
     private SubscriptionView view(Subscription subscription) {
