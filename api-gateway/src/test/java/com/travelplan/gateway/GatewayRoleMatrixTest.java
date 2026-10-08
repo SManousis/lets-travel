@@ -71,6 +71,10 @@ class GatewayRoleMatrixTest {
         MATRIX.put("/api/search/admin/status", Role.ADMIN);
         MATRIX.put("/api/search/admin/reindex", Role.ADMIN);
         MATRIX.put("/api/recommendations", Role.TRAVELER);
+        MATRIX.put("/api/dashboards", Role.TRAVELER);
+        MATRIX.put("/api/dashboards/me", Role.TRAVELER);
+        MATRIX.put("/api/dashboards/manager", Role.TRAVEL_MANAGER);
+        MATRIX.put("/api/dashboards/admin", Role.ADMIN);
         MATRIX.put("/api/admin/recommendations", Role.ADMIN);
     }
 

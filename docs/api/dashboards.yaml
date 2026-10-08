@@ -178,6 +178,30 @@ paths:
           "$ref": "#/components/responses/Forbidden"
         '503':
           "$ref": "#/components/responses/Unavailable"
+  "/api/dashboards/admin/reconciliation":
+    get:
+      operationId: reconcileDashboardIncome
+      summary: Compare dashboard income with payment-service, per currency
+      x-required-role: ADMIN
+      description: Net income derived from subscriptions (paid minus refunded) against
+        the SUCCEEDED payments payment-service holds. MATCH when equal; DIFFERENT
+        while a refund request or payment outcome is still on its way, or when the two
+        disagree. See docs/dashboards.md.
+      responses:
+        '200':
+          description: One line per currency.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/IncomeReconciliation"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '403':
+          "$ref": "#/components/responses/Forbidden"
+        '503':
+          "$ref": "#/components/responses/Unavailable"
 components:
   securitySchemes:
     bearerAuth:
@@ -285,10 +309,11 @@ components:
       properties:
         provider:
           type: string
+          description: TEST is the built-in payment simulator.
           enum:
           - STRIPE
           - PAYPAL
-          - SIMULATED
+          - TEST
         payments:
           type: integer
           minimum: 0
@@ -315,6 +340,10 @@ components:
         feedbackGiven:
           type: integer
           minimum: 0
+        upheldReportsAgainstMe:
+          type: integer
+          minimum: 0
+          description: Reports against the caller that an admin upheld (RESOLVED).
         preferredPaymentMethods:
           type: array
           description: Providers used, most used first.
@@ -329,6 +358,7 @@ components:
       - cancellations
       - reportsFiled
       - feedbackGiven
+      - upheldReportsAgainstMe
       - preferredPaymentMethods
       - asOf
     RatingSummary:
@@ -559,6 +589,8 @@ components:
         score:
           type: number
           format: double
+        components:
+          "$ref": "#/components/schemas/ScoreComponents"
         organizedTravels:
           type: integer
           minimum: 0
@@ -576,9 +608,36 @@ components:
       - managerId
       - displayName
       - score
+      - components
       - organizedTravels
       - income
       - rating
+      - upheldReports
+    ScoreComponents:
+      type: object
+      additionalProperties: false
+      description: The normalized inputs of the score (0..1), so a rank can be explained line by line.
+      properties:
+        rating:
+          type: number
+          format: double
+        income:
+          type: number
+          format: double
+        completedTravels:
+          type: number
+          format: double
+        cancellationRate:
+          type: number
+          format: double
+        upheldReports:
+          type: number
+          format: double
+      required:
+      - rating
+      - income
+      - completedTravels
+      - cancellationRate
       - upheldReports
     ManagerRankingPage:
       type: object
@@ -648,6 +707,37 @@ components:
       - topManagers
       - topTravels
       - asOf
+    IncomeReconciliation:
+      type: object
+      additionalProperties: false
+      properties:
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        subscriptionNetMinor:
+          type: integer
+          format: int64
+        paymentsSucceededMinor:
+          type: integer
+          format: int64
+        refundPendingMinor:
+          type: integer
+          format: int64
+        difference:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - MATCH
+          - DIFFERENT
+      required:
+      - currency
+      - subscriptionNetMinor
+      - paymentsSucceededMinor
+      - refundPendingMinor
+      - difference
+      - status
     FieldError:
       type: object
       additionalProperties: false

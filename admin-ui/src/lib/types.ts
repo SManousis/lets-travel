@@ -15,10 +15,10 @@ export type AccommodationCategory = "HOTEL" | "HOSTEL" | "APARTMENT" | "RESORT" 
 export type Activity = { id: string; name: string; description: string; date: string; category: ActivityCategory | null };
 export type Accommodation = { id: string; name: string; address: string; checkIn: string; checkOut: string; category: AccommodationCategory | null };
 export type Transport = { id: string; mode: string; departure: string; arrival: string; date: string };
-export type Travel = {
-  id: string; name: string; startDate: string; endDate: string; durationDays: number;
-  stops: Stop[]; activities: Activity[]; accommodations: Accommodation[]; transports: Transport[];
-  travelerIds: string[]; createdAt: string;
+/** A listing as its manager (or an admin) edits it: the offer plus its full itinerary. */
+export type Travel = TravelOffer & {
+  version: number; stops: Stop[]; activities: Activity[]; accommodations: Accommodation[]; transports: Transport[];
+  createdAt: string; updatedAt: string;
 };
 
 export type Gateway = { id: string; provider: "STRIPE" | "PAYPAL"; displayName: string; enabled: boolean; createdAt: string };
@@ -127,3 +127,46 @@ export type ModerationEntry = { adminId: string; status: ReportStatus; note: str
 
 /** Admin-only view of a report, with the reporter and the moderation history. */
 export type ReportDetail = Report & { reporterId: string; assigneeId: string | null; history: ModerationEntry[] };
+
+/** Dashboards (docs/api/dashboards.yaml, rules in docs/dashboards.md). Amounts are minor units per currency. */
+export type Money = { amountMinor: number; currency: string };
+export type RatingSummary = { average: number | null; count: number };
+export type MonthlyIncome = { month: string; amounts: Money[] };
+
+export type TravelerDashboard = {
+  completedTrips: number; upcomingTrips: number; cancellations: number; reportsFiled: number;
+  upheldReportsAgainstMe: number; feedbackGiven: number;
+  preferredPaymentMethods: { provider: string; payments: number }[]; asOf: string;
+};
+
+export type TravelSummary = {
+  travelId: string; title: string; managerId: string; managerDisplayName: string | null; startDate: string; endDate: string;
+  travelers: number; cancellations: number; income: Money[]; rating: RatingSummary;
+};
+
+export type ManagerDashboard = {
+  managerId: string; incomeByMonth: MonthlyIncome[]; totalTrips: number; upcomingTrips: number; totalTravelers: number;
+  cancellationRate: number; rating: RatingSummary; travels: TravelSummary[]; asOf: string;
+};
+
+export type ScoreComponents = {
+  rating: number; income: number; completedTravels: number; cancellationRate: number; upheldReports: number;
+};
+
+export type ManagerRanking = {
+  rank: number; managerId: string; displayName: string; score: number; components: ScoreComponents;
+  organizedTravels: number; income: Money[]; rating: RatingSummary; upheldReports: number;
+};
+
+export type AdminDashboard = {
+  incomeByMonth: MonthlyIncome[]; organizedTravels: number; activeTravelers: number; averageRating: RatingSummary;
+  openReports: number; topManagers: ManagerRanking[]; topTravels: TravelSummary[]; asOf: string;
+};
+
+export type Reconciliation = {
+  currency: string; subscriptionNetMinor: number; paymentsSucceededMinor: number; refundPendingMinor: number;
+  difference: number; status: "MATCH" | "DIFFERENT";
+};
+
+/** Pagination of the dashboard API, with the time the figures were computed. */
+export type DashboardPage<T> = ContractPage<T> & { asOf: string };

@@ -1,8 +1,9 @@
 import * as React from "react";
 import { api, errorMessage, fetchMe, login, type ApiContext, type Me } from "./lib/api";
+import { homeFor, href, resolveRoute, routes, routesFor, type RouteId } from "./lib/routes";
 import { AccountHome, RegisterPage, SetPasswordPage, roleLabel } from "./features/account/AccountPages";
 import { UsersPanel } from "./features/users/UsersPanel";
-import { TravelsPanel } from "./features/travels/TravelsPanel";
+import { ListingsPanel } from "./features/travels/ListingsPanel";
 import { PaymentsPanel } from "./features/payments/PaymentsPanel";
 import { TravelerTrips } from "./features/subscriptions/TravelerTrips";
 import { SubscriberManager } from "./features/subscriptions/SubscriberManager";
@@ -11,18 +12,9 @@ import { FeedbackOverview } from "./features/feedback/FeedbackOverview";
 import { MyReports } from "./features/reports/MyReports";
 import { Recommendations } from "./features/recommendations/Recommendations";
 import { ReportQueue } from "./features/reports/ReportQueue";
+import { AdminOverview, ManagerAnalytics, ManagerRankings, MyStatistics, TravelHistory } from "./features/dashboards/Dashboards";
 
-type Section = "users" | "travels" | "subscriptions" | "feedback" | "reports" | "payments";
 type Session = { token: string; expiresAt: number };
-
-const sections: { id: Section; label: string }[] = [
-  { id: "users", label: "Users and travelers" },
-  { id: "travels", label: "Travels and itineraries" },
-  { id: "subscriptions", label: "Subscribers" },
-  { id: "feedback", label: "Feedback" },
-  { id: "reports", label: "Reports" },
-  { id: "payments", label: "Payments and gateways" },
-];
 
 function storedSession(): Session | null {
   const token = sessionStorage.getItem("travelPlanToken");
@@ -43,17 +35,38 @@ function CompassMark() {
   </svg>;
 }
 
+/** The screen for one route; every one of them loads its own data when it opens. */
+function Screen({ route, me, context }: { route: RouteId; me: Me; context: ApiContext }) {
+  switch (route) {
+    case "home": return <div className="workflow-stack"><AccountHome me={me} /><Recommendations context={context} /></div>;
+    case "travels": return <TravelerTrips context={context} />;
+    case "feedback": return <div className="workflow-stack"><FeedbackPanel context={context} /></div>;
+    case "reports": return <div className="workflow-stack"><MyReports context={context} /></div>;
+    case "statistics": return <div className="workflow-stack"><MyStatistics context={context} /></div>;
+    case "listings": return <ListingsPanel context={context} admin={me.role === "ADMIN"} />;
+    case "subscribers": return <div className="workflow-stack"><SubscriberManager context={context} /></div>;
+    case "travel-feedback": return <div className="workflow-stack"><FeedbackOverview context={context} admin={me.role === "ADMIN"} /></div>;
+    case "analytics": return <div className="workflow-stack"><ManagerAnalytics context={context} /></div>;
+    case "overview": return <AdminOverview context={context} />;
+    case "rankings": return <div className="workflow-stack"><ManagerRankings context={context} /></div>;
+    case "history": return <div className="workflow-stack"><TravelHistory context={context} /></div>;
+    case "users": return <UsersPanel context={context} active />;
+    case "moderation": return <div className="workflow-stack"><ReportQueue context={context} /></div>;
+    case "payments": return <PaymentsPanel context={context} active />;
+  }
+}
+
 function App() {
   const [session, setSession] = React.useState<Session | null>(storedSession);
-  const [section, setSection] = React.useState<Section>("users");
-  const [visited, setVisited] = React.useState<Section[]>(["users"]);
-  const [username, setUsername] = React.useState("admin");
+  const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [me, setMe] = React.useState<Me | null>(null);
   const [notice, setNotice] = React.useState("");
   const [route, setRoute] = React.useState(() => window.location.hash);
+  const main = React.useRef<HTMLElement>(null);
+  const firstScreen = React.useRef(true);
 
   React.useEffect(() => {
     const follow = () => setRoute(window.location.hash);
@@ -80,13 +93,29 @@ function App() {
     ? { token: session.token, onUnauthorized: clearSession }
     : null, [session, clearSession]);
 
+  const loadMe = React.useCallback((current: { live: boolean }) => {
+    if (!context) return;
+    setError("");
+    fetchMe(context).then(found => { if (current.live) setMe(found); })
+      .catch(caught => { if (current.live) setError(errorMessage(caught)); });
+  }, [context]);
+
   React.useEffect(() => {
     if (!context || me) return;
-    let current = true;
-    fetchMe(context).then(found => { if (current) setMe(found); })
-      .catch(caught => { if (current) setError(errorMessage(caught)); });
-    return () => { current = false; };
-  }, [context, me]);
+    const current = { live: true };
+    loadMe(current);
+    return () => { current.live = false; };
+  }, [context, me, loadMe]);
+
+  const resolved = me ? resolveRoute(route, me.role) : null;
+  const screenKey = resolved?.kind === "page" ? resolved.route : resolved?.kind;
+
+  // A new screen is announced by moving focus to the main region, as a page load would.
+  React.useEffect(() => {
+    if (!screenKey) return;
+    if (firstScreen.current) { firstScreen.current = false; return; }
+    main.current?.focus();
+  }, [screenKey]);
 
   function leavePublicPage(message: string) {
     setNotice(message);
@@ -95,7 +124,9 @@ function App() {
   }
 
   async function signIn(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true); setError("");
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true); setError("");
     try {
       const result = await login(username, password);
       if (result.expiresAt * 1000 <= Date.now()) throw new Error("Expired token");
@@ -112,12 +143,7 @@ function App() {
     setBusy(true);
     try { await api<void>(context, "/api/auth/logout", { method: "POST" }); }
     catch { /* Local session is cleared even if the service is unavailable. */ }
-    finally { clearSession(); setBusy(false); }
-  }
-
-  function chooseSection(next: Section) {
-    setSection(next);
-    setVisited(current => current.includes(next) ? current : [...current, next]);
+    finally { clearSession(); setBusy(false); firstScreen.current = true; }
   }
 
   const setupToken = route.startsWith("#/set-password") ? new URLSearchParams(route.split("?")[1] ?? "").get("token") : null;
@@ -131,7 +157,7 @@ function App() {
   if (!context) return <main className="login-shell">
     <form className="login-card" onSubmit={signIn}>
       <span className="brand-mark"><CompassMark /></span>
-      <p className="eyebrow">Travel Plan</p>
+      <p className="eyebrow">Let's Travel</p>
       <h1>Sign in</h1>
       <p className="login-intro">Sign in with your email and password.</p>
       {notice && <p className="message success" role="status">{notice}</p>}
@@ -143,38 +169,40 @@ function App() {
     </form>
   </main>;
 
-  if (!me) return <main className="login-shell"><p role="status">{error || "Loading your account…"}</p></main>;
+  if (!me || !resolved) return <main className="login-shell">
+    {error ? <div className="message error" role="alert"><p>{error}</p>
+      <div className="actions"><button type="button" onClick={() => loadMe({ live: true })}>Try again</button>
+        <button type="button" onClick={clearSession}>Sign out</button></div></div>
+      : <p role="status">Loading your account…</p>}
+  </main>;
 
+  const current = resolved.kind === "page" ? resolved.route : null;
   return <div className="app-shell">
+    <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); main.current?.focus(); }}>Skip to content</a>
     <header className="site-header">
-      <a className="brand" href="#main-content" aria-label="Travel Plan Admin home">
+      <a className="brand" href={href(homeFor(me.role))}>
         <span className="brand-mark"><CompassMark /></span>
-        <span>Travel Plan Admin</span>
+        <span>Let's Travel</span>
       </a>
       <div className="header-actions"><span className="phase-label">{roleLabel(me.role)}</span>
         <button type="button" onClick={() => void signOut()} disabled={busy}>Sign out</button></div>
     </header>
-    {me.role !== "ADMIN" ? <main id="main-content"><AccountHome me={me} />
-      <Recommendations context={context} />
-      {me.role === "TRAVEL_MANAGER" && <SubscriberManager context={context} />}
-      {me.role === "TRAVEL_MANAGER" && <FeedbackOverview context={context} />}
-      <TravelerTrips context={context} />
-      <FeedbackPanel context={context} />
-      <MyReports context={context} /></main> : <main id="main-content">
-      <div className="workspace-intro"><p className="eyebrow">Operations</p><h1>Plan and manage every journey.</h1>
-        <p>Choose an area to work with live records from the administration services.</p></div>
-      <nav aria-label="Admin sections" className="section-nav">
-        {sections.map(item => <button key={item.id} type="button" className={section === item.id ? "active" : ""}
-          aria-current={section === item.id ? "page" : undefined} onClick={() => chooseSection(item.id)}>{item.label}</button>)}
-      </nav>
-      {visited.includes("users") && <div hidden={section !== "users"}><UsersPanel context={context} active={section === "users"} /></div>}
-      {visited.includes("travels") && <div hidden={section !== "travels"}><TravelsPanel context={context} active={section === "travels"} /></div>}
-      {visited.includes("subscriptions") && <div hidden={section !== "subscriptions"}><SubscriberManager context={context} /></div>}
-      {visited.includes("feedback") && <div hidden={section !== "feedback"}><FeedbackOverview context={context} admin /></div>}
-      {visited.includes("reports") && <div hidden={section !== "reports"}><ReportQueue context={context} /></div>}
-      {visited.includes("payments") && <div hidden={section !== "payments"}><PaymentsPanel context={context} active={section === "payments"} /></div>}
-    </main>}
-    <footer><span>Travel Plan</span><span>Operations administration</span></footer>
+    <nav aria-label="Main navigation" className="section-nav">
+      <ul>{routesFor(me.role).map(id => <li key={id}>
+        <a href={href(id)} className={current === id ? "active" : undefined} aria-current={current === id ? "page" : undefined}>
+          {routes[id].label}</a></li>)}</ul>
+    </nav>
+    <main id="main-content" ref={main} tabIndex={-1}>
+      {resolved.kind === "page" ? <Screen key={resolved.route} route={resolved.route} me={me} context={context} />
+        : <section className="workspace-card" aria-labelledby="unavailable-title">
+          <h2 id="unavailable-title">{resolved.kind === "forbidden" ? "Not available for your role" : "Page not found"}</h2>
+          <p>{resolved.kind === "forbidden"
+            ? `${resolved.label} is not part of the ${roleLabel(me.role).toLowerCase()} workspace.`
+            : "This address does not match any page."}</p>
+          <a className="primary button-link" href={href(homeFor(me.role))}>Go to {routes[homeFor(me.role)].label}</a>
+        </section>}
+    </main>
+    <footer><span>Let's Travel</span><span>Signed in as {me.email ?? roleLabel(me.role)}</span></footer>
   </div>;
 }
 

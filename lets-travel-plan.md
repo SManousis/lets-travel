@@ -270,16 +270,16 @@ Evidence: `docs/audit/phase-6-verification.md`. Design: `docs/feedback-and-repor
 
 **Main files:** `engagement-service/src/main/`, projection migrations/consumers, dashboard API contracts, reconciliation jobs and tests.
 
-- [ ] Define time zone, currency-conversion, date-range, inclusion, cancellation, refund, and report-count rules for every metric.
-- [ ] Build Admin overview metrics for top-ranking managers and travels, income by recent month, organized-travel counts, detailed travel history, feedback, and open/resolved reports.
-- [ ] Define and document a deterministic manager performance score using feedback, income, participation/traveler volume, completed travel count, and report outcomes.
-- [ ] Build an ordered manager leaderboard with transparent component values so the score can be explained during the audit.
-- [ ] Build Travel Manager metrics for own income, number of trips, number of travelers, subscriber status, ratings, feedback, and useful trends.
-- [ ] Build Traveler metrics for past participation, reports made/received as permitted, subscription cancellations, feedback history, and preferred payment method.
-- [ ] Complete the public manager statistics page with completed travels, past ratings, and report count.
-- [ ] Enforce Admin global scope, manager owner-only scope, traveler self-only scope, and privacy-safe public scope.
-- [ ] Make projection consumers idempotent and provide a reconciliation command that compares dashboards to source records and repairs drift.
-- [ ] Add fixture-based tests whose expected totals, rankings, scores, and monthly income can be calculated by hand.
+- [x] Define time zone, currency-conversion, date-range, inclusion, cancellation, refund, and report-count rules for every metric.
+- [x] Build Admin overview metrics for top-ranking managers and travels, income by recent month, organized-travel counts, detailed travel history, feedback, and open/resolved reports.
+- [x] Define and document a deterministic manager performance score using feedback, income, participation/traveler volume, completed travel count, and report outcomes.
+- [x] Build an ordered manager leaderboard with transparent component values so the score can be explained during the audit.
+- [x] Build Travel Manager metrics for own income, number of trips, number of travelers, subscriber status, ratings, feedback, and useful trends.
+- [x] Build Traveler metrics for past participation, reports made/received as permitted, subscription cancellations, feedback history, and preferred payment method.
+- [x] Complete the public manager statistics page with completed travels, past ratings, and report count.
+- [x] Enforce Admin global scope, manager owner-only scope, traveler self-only scope, and privacy-safe public scope.
+- [x] Make projection consumers idempotent and provide a reconciliation command that compares dashboards to source records and repairs drift. (Dashboards are computed on request from the source tables, so they cannot drift; `GET /api/dashboards/admin/reconciliation` compares their income with payment-service. See [dashboards](docs/dashboards.md#5-checking-the-totals-against-payments).)
+- [x] Add fixture-based tests whose expected totals, rankings, scores, and monthly income can be calculated by hand.
 - [ ] **Completion gate:** All dashboard values reconcile with source subscriptions/payments/feedback/reports, role scoping tests pass, and each score/total can be explained from documented rules.
 
 ## Phase 9 — Responsive role-specific web experience
@@ -290,13 +290,13 @@ Evidence: `docs/audit/phase-6-verification.md`. Design: `docs/feedback-and-repor
 
 **Main files:** `admin-ui/src/`, UI tests, `docs/audit/browser-checks.md`. The legacy directory may be renamed in a dedicated change if the migration cost is justified.
 
-- [ ] Add role-aware navigation and route guards based on the server-validated `/api/me` response.
-- [ ] Keep the complete Admin workspace and add overview, rankings, travel history, feedback, and moderation views.
-- [ ] Add Travel Manager listing editor, subscriber management, own feedback, analytics, and traveler capabilities.
-- [ ] Add Traveler search/autocomplete, browse/detail, recommendations, subscribe/pay/cancel, feedback, reports, manager profile, and personal statistics views.
-- [ ] Show loading, empty, success, validation, authorization, conflict, payment, degraded-service, and retry states clearly.
-- [ ] Debounce and cancel stale autocomplete requests; support keyboard navigation and screen-reader announcements.
-- [ ] Prevent double submission for subscription, cancellation, payment, feedback, and report actions.
+- [x] Add role-aware navigation and route guards based on the server-validated `/api/me` response.
+- [x] Keep the complete Admin workspace and add overview, rankings, travel history, feedback, and moderation views.
+- [x] Add Travel Manager listing editor, subscriber management, own feedback, analytics, and traveler capabilities.
+- [x] Add Traveler search/autocomplete, browse/detail, recommendations, subscribe/pay/cancel, feedback, reports, manager profile, and personal statistics views.
+- [x] Show loading, empty, success, validation, authorization, conflict, payment, degraded-service, and retry states clearly.
+- [x] Debounce and cancel stale autocomplete requests; support keyboard navigation and screen-reader announcements.
+- [x] Prevent double submission for subscription, cancellation, payment, feedback, and report actions.
 - [ ] Use semantic landmarks, associated labels, visible focus, sufficient contrast, and keyboard-operable dialogs/menus.
 - [ ] Support at least phone, tablet, and desktop layouts without horizontal overflow or hidden critical actions.
 - [ ] Verify current Chrome and Firefox behavior for all three roles and record the browser/version/device matrix.

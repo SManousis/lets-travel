@@ -20,7 +20,8 @@ public class SecurityConfig {
         return ServiceSecurity.apply(http, tokens)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**", "/error", "/internal/**").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**", "/api/dashboards/admin", "/api/dashboards/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/dashboards/manager").hasRole("TRAVEL_MANAGER")
                         .requestMatchers("/api/managed-travels/**").hasRole("TRAVEL_MANAGER")
                         .requestMatchers(HttpMethod.GET, "/api/feedback").hasRole("TRAVEL_MANAGER")
                         .requestMatchers("/api/**").hasRole("TRAVELER")
