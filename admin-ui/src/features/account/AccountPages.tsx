@@ -69,7 +69,7 @@ export function SetPasswordPage({ token, onDone }: { token: string; onDone: () =
   </form>;
 }
 
-/** What travelers and travel managers see until their own screens arrive in Phase 9. */
+/** The home screen's account summary for travelers and travel managers. */
 export function AccountHome({ me }: { me: Me }) {
   const name = [me.firstName, me.lastName].filter(Boolean).join(" ");
   return <section className="panel" aria-labelledby="account-heading">
@@ -80,6 +80,6 @@ export function AccountHome({ me }: { me: Me }) {
       <dt>Role</dt><dd>{roleLabel(me.role)}</dd>
       {me.memberSince && <><dt>Member since</dt><dd>{new Date(me.memberSince).toLocaleDateString()}</dd></>}
     </dl>
-    <p>Search and recommendations will appear here soon.</p>
+    <p><a href="#/travels">Find and book a travel</a> · <a href="#/statistics">See your statistics</a></p>
   </section>;
 }

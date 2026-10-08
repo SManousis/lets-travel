@@ -190,3 +190,38 @@ label.checkbox { display: flex; align-items: center; gap: 8px; }
 
 /* Recommendation reasons */
 .reason-list { margin: 4px 0 0; padding-left: 18px; color: var(--muted); font-size: .85rem; }
+
+/* Phase 9: role-aware shell, dashboards, accessibility helpers */
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.skip-link { position: absolute; left: 12px; top: -60px; z-index: 10; padding: 10px 14px; border-radius: 9px; color: #fff; background: var(--green); font-weight: 700; }
+.skip-link:focus { top: 12px; }
+main:focus { outline: none; }
+.section-nav { padding: 18px 0 24px; }
+.section-nav ul { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.section-nav a { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 9px 15px; color: var(--ink); background: #fff; font-weight: 600; text-decoration: none; }
+.section-nav a:hover { border-color: var(--green); }
+.section-nav a.active { border-color: var(--green); color: #fff; background: var(--green); }
+.button-link { display: inline-block; text-decoration: none; }
+.wide-field { display: grid; gap: 6px; margin-top: 13px; color: var(--ink); font-size: .86rem; font-weight: 600; }
+.loading { color: var(--muted); }
+.message.error button { margin-top: 4px; border: 1px solid #c99a91; border-radius: 8px; padding: 7px 12px; color: inherit; background: #fff; }
+.message p { margin: 0 0 6px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 20px; }
+.stat { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfdfb; }
+.stat dt { color: var(--muted); font-size: .8rem; font-weight: 600; }
+.stat dd { margin: 4px 0 0; font-size: 1.35rem; font-weight: 700; overflow-wrap: anywhere; }
+.stat small { display: block; margin-top: 4px; color: var(--muted); font-size: .75rem; }
+.table-scroll { max-width: 100%; overflow-x: auto; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 12px; }
+.table-scroll table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.table-scroll caption { padding: 10px 12px; text-align: left; color: var(--muted); font-size: .8rem; }
+.table-scroll th, .table-scroll td { padding: 9px 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+.table-scroll thead th { background: #f4f8f6; white-space: nowrap; }
+.table-scroll small { color: var(--muted); }
+.plain-list { margin: 0 0 16px; padding-left: 20px; }
+.suggestions li { display: grid; gap: 2px; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+.suggestions li:hover, .suggestions li.active { background: #f1f8f4; outline: 2px solid #8ccbb8; }
+@media (max-width: 600px) {
+  .section-nav a { padding: 8px 12px; font-size: .9rem; }
+  .card-heading { flex-wrap: wrap; }
+  .header-actions .phase-label { display: none; }
+}

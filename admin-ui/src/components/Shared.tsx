@@ -1,5 +1,6 @@
 import type { Page } from "../lib/api";
 import type { ReactNode } from "react";
+import type { Resource } from "../lib/useResource";
 
 export function PageControls<T>({ result, onPage }: { result: Page<T> | null; onPage: (page: number) => void }) {
   if (!result) return null;
@@ -17,4 +18,21 @@ export function Message({ kind = "info", children }: { kind?: "info" | "error" |
 
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="empty-state">{children}</p>;
+}
+
+/** Loading, failure (with retry) and success for one loaded resource. */
+export function Loaded<T>({ resource, retry, label, children }: {
+  resource: Resource<T>; retry: () => void; label: string; children: (data: T) => ReactNode;
+}) {
+  if (resource.state === "loading") return <p role="status" className="loading">Loading {label}…</p>;
+  if (resource.state === "error") return <div className="message error" role="alert">
+    <p>{resource.degraded ? `${label.charAt(0).toUpperCase()}${label.slice(1)} are temporarily unavailable. The rest of the app still works.`
+      : resource.message}</p>
+    <button type="button" onClick={retry}>Try again</button>
+  </div>;
+  return <>{children(resource.data)}</>;
+}
+
+export function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
+  return <div className="stat"><dt>{label}</dt><dd>{value}</dd>{hint && <small>{hint}</small>}</div>;
 }

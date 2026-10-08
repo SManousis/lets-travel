@@ -13,9 +13,11 @@ export type ApiContext = {
 };
 
 type ApiOptions = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   headers?: Record<string, string>;
+  /** Aborting drops the request; the promise then rejects with an AbortError, which callers ignore. */
+  signal?: AbortSignal;
 };
 
 export async function apiResult<T>(context: ApiContext, path: string, options: ApiOptions = {}): Promise<{ status: number; data: T }> {
@@ -24,6 +26,7 @@ export async function apiResult<T>(context: ApiContext, path: string, options: A
     response = await fetch(path, {
       method: options.method ?? "GET",
       credentials: "same-origin",
+      signal: options.signal,
       headers: {
         Authorization: `Bearer ${context.token}`,
         ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
@@ -31,7 +34,8 @@ export async function apiResult<T>(context: ApiContext, path: string, options: A
       },
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
     });
-  } catch {
+  } catch (caught) {
+    if (options.signal?.aborted) throw caught;
     throw new ApiError(0, "NETWORK_UNAVAILABLE", "The service could not be reached. Try again.");
   }
 
@@ -45,6 +49,7 @@ export async function apiResult<T>(context: ApiContext, path: string, options: A
     const code = payload.code ?? `HTTP_${response.status}`;
     const fieldDetails = payload.fieldErrors ? ` ${Object.values(payload.fieldErrors).join(" ")}` : "";
     const message = response.status === 403 ? "Your role does not allow this action."
+      : response.status === 404 ? "This record does not exist or is not available to you."
       : response.status === 503 ? "A service is unavailable. Try again."
         : payload.message ? `${payload.message} (${code}).${fieldDetails}`
           : `Request failed (${code}).`;
@@ -150,4 +155,8 @@ export function searchPath(text: string, filters: Record<string, string>, page =
 
 export function autocompletePath(text: string, limit = 8): string {
   return `/api/search/autocomplete?${new URLSearchParams({ q: text.trim(), limit: String(limit) }).toString()}`;
+}
+
+export function isAbort(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }

@@ -290,13 +290,13 @@ Evidence: `docs/audit/phase-6-verification.md`. Design: `docs/feedback-and-repor
 
 **Main files:** `admin-ui/src/`, UI tests, `docs/audit/browser-checks.md`. The legacy directory may be renamed in a dedicated change if the migration cost is justified.
 
-- [ ] Add role-aware navigation and route guards based on the server-validated `/api/me` response.
-- [ ] Keep the complete Admin workspace and add overview, rankings, travel history, feedback, and moderation views.
-- [ ] Add Travel Manager listing editor, subscriber management, own feedback, analytics, and traveler capabilities.
-- [ ] Add Traveler search/autocomplete, browse/detail, recommendations, subscribe/pay/cancel, feedback, reports, manager profile, and personal statistics views.
-- [ ] Show loading, empty, success, validation, authorization, conflict, payment, degraded-service, and retry states clearly.
-- [ ] Debounce and cancel stale autocomplete requests; support keyboard navigation and screen-reader announcements.
-- [ ] Prevent double submission for subscription, cancellation, payment, feedback, and report actions.
+- [x] Add role-aware navigation and route guards based on the server-validated `/api/me` response.
+- [x] Keep the complete Admin workspace and add overview, rankings, travel history, feedback, and moderation views.
+- [x] Add Travel Manager listing editor, subscriber management, own feedback, analytics, and traveler capabilities.
+- [x] Add Traveler search/autocomplete, browse/detail, recommendations, subscribe/pay/cancel, feedback, reports, manager profile, and personal statistics views.
+- [x] Show loading, empty, success, validation, authorization, conflict, payment, degraded-service, and retry states clearly.
+- [x] Debounce and cancel stale autocomplete requests; support keyboard navigation and screen-reader announcements.
+- [x] Prevent double submission for subscription, cancellation, payment, feedback, and report actions.
 - [ ] Use semantic landmarks, associated labels, visible focus, sufficient contrast, and keyboard-operable dialogs/menus.
 - [ ] Support at least phone, tablet, and desktop layouts without horizontal overflow or hidden critical actions.
 - [ ] Verify current Chrome and Firefox behavior for all three roles and record the browser/version/device matrix.

@@ -57,7 +57,7 @@ it("debounces autocomplete and asks only for the last text typed", async () => {
   }));
 
   render(<TravelSearch context={context} onOpen={() => {}} />);
-  await user.type(screen.getByRole("searchbox"), "cre");
+  await user.type(screen.getByRole("combobox", { name: /Search by place/ }), "cre");
   const list = await screen.findByRole("listbox", { name: "Suggestions" });
   expect(asked).toEqual(["cre"]);
   expect(within(list).getByText("Crete Island Escape")).toBeInTheDocument();
@@ -65,12 +65,60 @@ it("debounces autocomplete and asks only for the last text typed", async () => {
   expect(within(list).getByText("Activity · Activity on Crete Island Escape")).toBeInTheDocument();
 });
 
+it("lets the keyboard move through suggestions, announces them and picks one with Enter", async () => {
+  const user = userEvent.setup();
+  const onOpen = vi.fn();
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost");
+    if (url.pathname === "/api/search/autocomplete") return json({ items: [
+      { text: "Greece", type: "COUNTRY", travelId: null, context: "Country" },
+      { text: "Crete Island Escape", type: "TRAVEL", travelId: "travel-1", context: "dates" },
+    ] });
+    throw new Error(`Unexpected request: ${url}`);
+  }));
+
+  render(<TravelSearch context={context} onOpen={onOpen} />);
+  const box = screen.getByRole("combobox", { name: /Search by place/ });
+  await user.type(box, "cre");
+  await screen.findByRole("listbox", { name: "Suggestions" });
+  expect(screen.getByText("2 suggestions. Use the up and down arrows to choose.")).toBeInTheDocument();
+
+  await user.keyboard("{ArrowDown}{ArrowDown}");
+  const crete = screen.getByRole("option", { name: /Crete Island Escape/ });
+  expect(crete).toHaveAttribute("aria-selected", "true");
+  expect(box).toHaveAttribute("aria-activedescendant", crete.id);
+  await user.keyboard("{ArrowDown}");
+  expect(screen.getByRole("option", { name: /Greece/ })).toHaveAttribute("aria-selected", "true");
+  await user.keyboard("{ArrowUp}{Enter}");
+  expect(onOpen).toHaveBeenCalledWith("travel-1");
+
+  await user.type(box, "x");
+  await screen.findByRole("listbox", { name: "Suggestions" });
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+});
+
+it("aborts a suggestion request that a newer keystroke replaced", async () => {
+  const user = userEvent.setup();
+  const signals: AbortSignal[] = [];
+  vi.stubGlobal("fetch", vi.fn((_input: RequestInfo | URL, options?: RequestInit) => {
+    signals.push(options?.signal as AbortSignal);
+    return new Promise<Response>(() => {});
+  }));
+
+  render(<TravelSearch context={context} onOpen={() => {}} />);
+  await user.type(screen.getByRole("combobox", { name: /Search by place/ }), "cr");
+  await waitFor(() => expect(signals).toHaveLength(1));
+  await user.type(screen.getByRole("combobox", { name: /Search by place/ }), "e");
+  expect(signals[0].aborted).toBe(true);
+});
+
 it("does not ask for suggestions before two characters", async () => {
   const user = userEvent.setup();
   const fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
   render(<TravelSearch context={context} onOpen={() => {}} />);
-  await user.type(screen.getByRole("searchbox"), "c");
+  await user.type(screen.getByRole("combobox", { name: /Search by place/ }), "c");
   await new Promise(resolve => setTimeout(resolve, 400));
   expect(fetchMock).not.toHaveBeenCalled();
 });
@@ -87,7 +135,7 @@ it("searches with the chosen filters and opens a result", async () => {
   }));
 
   render(<TravelSearch context={context} onOpen={onOpen} />);
-  await user.type(screen.getByRole("searchbox"), "kayaking");
+  await user.type(screen.getByRole("combobox", { name: /Search by place/ }), "kayaking");
   await user.type(screen.getByLabelText("Country"), "Greece");
   await user.selectOptions(screen.getByLabelText("Transport"), "FERRY");
   await user.type(screen.getByLabelText("Max price"), "500");
@@ -123,15 +171,15 @@ it("picking a place suggestion runs a search for it; picking a travel opens it",
   }));
 
   render(<TravelSearch context={context} onOpen={onOpen} />);
-  await user.type(screen.getByRole("searchbox"), "gre");
-  await user.click(await screen.findByRole("button", { name: /Greece/ }));
+  await user.type(screen.getByRole("combobox", { name: /Search by place/ }), "gre");
+  await user.click(await screen.findByRole("option", { name: /Greece/ }));
   await screen.findByText("1 travel found");
   expect(searched).toEqual(["Greece"]);
-  expect(screen.getByRole("searchbox")).toHaveValue("Greece");
+  expect(screen.getByRole("combobox", { name: /Search by place/ })).toHaveValue("Greece");
 
-  await user.clear(screen.getByRole("searchbox"));
-  await user.type(screen.getByRole("searchbox"), "cre");
-  await user.click(await screen.findByRole("button", { name: /Crete Island Escape/ }));
+  await user.clear(screen.getByRole("combobox", { name: /Search by place/ }));
+  await user.type(screen.getByRole("combobox", { name: /Search by place/ }), "cre");
+  await user.click(await screen.findByRole("option", { name: /Crete Island Escape/ }));
   expect(onOpen).toHaveBeenCalledWith("travel-1");
 });
 
@@ -150,7 +198,7 @@ it("falls back to the travel list when search is unavailable", async () => {
   }));
 
   render(<TravelSearch context={context} onOpen={() => {}} />);
-  await user.type(screen.getByRole("searchbox"), "crete");
+  await user.type(screen.getByRole("combobox", { name: /Search by place/ }), "crete");
   await user.click(screen.getByRole("button", { name: "Search" }));
 
   expect(await screen.findByText(/Search is temporarily limited/)).toBeInTheDocument();

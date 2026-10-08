@@ -15,17 +15,21 @@ const transportModes = ["PLANE", "TRAIN", "BUS", "CAR", "BOAT"];
 type TransportDraft = { mode: string; departure: string; arrival: string; date: string };
 
 export type TravelDraft = {
-  name: string; startDate: string; endDate: string; stops: StopDraft[];
+  name: string; description: string; startDate: string; endDate: string; capacity: string; price: string;
+  currency: string; timeZone: string; managerId: string; stops: StopDraft[];
   activities: ActivityDraft[]; accommodations: StayDraft[]; transports: TransportDraft[];
 };
 
 export function blankTravel(destinationId = ""): TravelDraft {
-  return { name: "", startDate: "", endDate: "", stops: [{ destinationId, arrivalDate: "", departureDate: "" }],
+  return { name: "", description: "", startDate: "", endDate: "", capacity: "10", price: "", currency: "EUR",
+    timeZone: "UTC", managerId: "", stops: [{ destinationId, arrivalDate: "", departureDate: "" }],
     activities: [], accommodations: [], transports: [] };
 }
 
 export function fromTravel(travel: Travel): TravelDraft {
-  return { name: travel.name, startDate: travel.startDate, endDate: travel.endDate,
+  return { name: travel.name, description: travel.description, startDate: travel.startDate, endDate: travel.endDate,
+    capacity: String(travel.capacity), price: String(travel.price), currency: travel.currency, timeZone: travel.timeZone,
+    managerId: travel.managerId,
     stops: [...travel.stops].sort((a, b) => a.position - b.position).map(stop => ({
       destinationId: stop.destinationId, arrivalDate: stop.arrivalDate ?? "", departureDate: stop.departureDate ?? "",
     })),
@@ -38,7 +42,9 @@ export function fromTravel(travel: Travel): TravelDraft {
 }
 
 export function travelPayload(draft: TravelDraft) {
-  return { name: draft.name, startDate: draft.startDate, endDate: draft.endDate,
+  return { name: draft.name.trim(), description: draft.description.trim(), startDate: draft.startDate, endDate: draft.endDate,
+    capacity: Number(draft.capacity), price: draft.price, currency: draft.currency.trim().toUpperCase(),
+    timeZone: draft.timeZone.trim() || "UTC", ...(draft.managerId ? { managerId: draft.managerId } : {}),
     stops: draft.stops.map((stop, position) => ({ destinationId: stop.destinationId, position,
       arrivalDate: stop.arrivalDate || null, departureDate: stop.departureDate || null })),
     activities: draft.activities.map(activity => ({ ...activity, category: activity.category || null })),
@@ -46,9 +52,11 @@ export function travelPayload(draft: TravelDraft) {
     transports: draft.transports };
 }
 
-export function ItineraryEditor({ draft, onChange, destinations, onSubmit, onCancel, busy, error }:
+export function ItineraryEditor({ draft, onChange, destinations, onSubmit, onCancel, busy, error, managers }:
   { draft: TravelDraft; onChange: (next: TravelDraft) => void; destinations: Destination[];
-    onSubmit: (event: React.FormEvent) => void; onCancel: () => void; busy: boolean; error: string }) {
+    onSubmit: (event: React.FormEvent) => void; onCancel: () => void; busy: boolean; error: string;
+    /** Only admins choose the organiser; managers always own what they create. */
+    managers?: { id: string; name: string }[] }) {
   function updateRow<K extends "stops" | "activities" | "accommodations" | "transports">(
     key: K, index: number, value: TravelDraft[K][number]) {
     const rows = [...draft[key]] as Array<TravelDraft[K][number]>;
@@ -72,7 +80,17 @@ export function ItineraryEditor({ draft, onChange, destinations, onSubmit, onCan
       <label>Travel name<input required value={draft.name} onChange={event => onChange({ ...draft, name: event.target.value })} /></label>
       <label>Start date<input required type="date" value={draft.startDate} onChange={event => onChange({ ...draft, startDate: event.target.value })} /></label>
       <label>End date<input required type="date" min={draft.startDate || undefined} value={draft.endDate} onChange={event => onChange({ ...draft, endDate: event.target.value })} /></label>
+      <label>Places<input required type="number" min="1" step="1" value={draft.capacity} onChange={event => onChange({ ...draft, capacity: event.target.value })} /></label>
+      <label>Price per traveler<input required type="number" min="0" step="0.01" value={draft.price} onChange={event => onChange({ ...draft, price: event.target.value })} /></label>
+      <label>Currency<input required pattern="[A-Za-z]{3}" maxLength={3} value={draft.currency} onChange={event => onChange({ ...draft, currency: event.target.value })} /></label>
+      <label>Time zone<input maxLength={64} value={draft.timeZone} placeholder="Europe/Athens" onChange={event => onChange({ ...draft, timeZone: event.target.value })} /></label>
+      {managers && <label>Organiser<select required value={draft.managerId} onChange={event => onChange({ ...draft, managerId: event.target.value })}>
+        <option value="">Choose a travel manager</option>
+        {managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}
+      </select></label>}
     </div>
+    <label className="wide-field">Description<textarea required maxLength={4000} value={draft.description}
+      onChange={event => onChange({ ...draft, description: event.target.value })} /></label>
     <div className="subsection-heading"><h4>Destination stops</h4>
       <button type="button" onClick={() => onChange({ ...draft, stops: [...draft.stops,
         { destinationId: destinations[0]?.id ?? "", arrivalDate: "", departureDate: "" }] })}>Add stop</button></div>
