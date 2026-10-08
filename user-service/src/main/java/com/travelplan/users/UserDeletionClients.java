@@ -1,5 +1,6 @@
 package com.travelplan.users;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ final class UserDeletionClients {
 
     private int send(HttpRequest request) {
         try {
-            return client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode();
+            return CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.discarding()).statusCode();
         } catch (IOException ex) {
             throw new Unavailable("CLEANUP_DEPENDENCY_UNAVAILABLE");
         } catch (InterruptedException ex) {

@@ -1,5 +1,6 @@
 package com.travelplan.travel.recommend;
 
+import com.travelplan.common.RequestIds;
 import com.travelplan.travel.recommend.RecommendationEngine.Recommendations;
 import com.travelplan.travel.recommend.RecommendationGraph.Drift;
 import com.travelplan.travel.recommend.RecommendationGraph.HistoryRow;
@@ -52,12 +53,30 @@ public class RecommendationService {
                 graph.candidates(userId, LocalDate.now(clock.withZone(ZoneOffset.UTC))), limit));
     }
 
-    /** Applies a batch of engagement-service events in order; unknown event types are skipped. */
+    /**
+     * Applies a batch of engagement-service events in order; unknown event types are skipped. An event
+     * that cannot be applied (missing or malformed fields) is reported back as rejected so the sender
+     * can park it, and the rest of the batch still applies. A graph outage fails the whole batch.
+     */
     public EventResult apply(List<Event> events) {
         return withGraph(() -> {
             int applied = 0, duplicates = 0, stale = 0, ignored = 0;
+            List<Rejected> rejected = new java.util.ArrayList<>();
             for (Event event : events) {
-                Outcome outcome = apply(event);
+                Outcome[] result = new Outcome[1];
+                try {
+                    // Logged under the ID of the request that caused the event, not the relay's.
+                    RequestIds.within(event.traceId(), () -> result[0] = apply(event));
+                } catch (Neo4jException outage) {
+                    throw outage;
+                } catch (RuntimeException unprocessable) {
+                    RequestIds.within(event.traceId(), () -> log.warn("Rejected event {} ({}): {}", event.eventId(),
+                            event.eventType(), unprocessable.toString()));
+                    rejected.add(new Rejected(event.eventId(), unprocessable.getClass().getSimpleName()
+                            + (unprocessable.getMessage() == null ? "" : ": " + unprocessable.getMessage())));
+                    continue;
+                }
+                Outcome outcome = result[0];
                 if (outcome == null) ignored++;
                 else switch (outcome) {
                     case APPLIED -> applied++;
@@ -65,7 +84,7 @@ public class RecommendationService {
                     case STALE -> stale++;
                 }
             }
-            return new EventResult(applied, duplicates, stale, ignored);
+            return new EventResult(applied, duplicates, stale, ignored, rejected);
         });
     }
 
@@ -123,9 +142,17 @@ public class RecommendationService {
     }
 
     /** One engagement-service outbox event. */
-    public record Event(UUID eventId, String eventType, UUID aggregateId, long aggregateVersion, Map<String, Object> payload) {}
+    public record Event(UUID eventId, String eventType, UUID aggregateId, long aggregateVersion, Map<String, Object> payload,
+                        String traceId) {
+        public Event(UUID eventId, String eventType, UUID aggregateId, long aggregateVersion, Map<String, Object> payload) {
+            this(eventId, eventType, aggregateId, aggregateVersion, payload, null);
+        }
+    }
 
-    public record EventResult(int applied, int duplicates, int stale, int ignored) {}
+    public record EventResult(int applied, int duplicates, int stale, int ignored, List<Rejected> rejected) {}
+
+    /** An event this service can never apply as sent; the sender parks it. */
+    public record Rejected(UUID eventId, String reason) {}
 
     public record ReconcileStatus(Instant at, Drift drift, String error) {
         static final ReconcileStatus NEVER = new ReconcileStatus(null, null, null);

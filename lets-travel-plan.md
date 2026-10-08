@@ -312,14 +312,14 @@ Evidence: `docs/audit/phase-6-verification.md`. Design: `docs/feedback-and-repor
 **Main files:** Outbox/inbox implementations, reconciliation jobs, `infra/compose/`, `scripts/load/`, `docs/operations.md`, resilience tests and runbooks.
 
 - [ ] Implement transactional outbox/inbox behavior for PostgreSQL services and same-transaction change markers for Neo4j writes.
-- [ ] Make all consumers idempotent and order events by aggregate version; quarantine unprocessable events with a visible recovery workflow.
+- [x] Make all consumers idempotent and order events by aggregate version; quarantine unprocessable events with a visible recovery workflow. (Inbox and version checks in travel-service; rejected events are parked and resent through `/api/admin/events`.)
 - [ ] Add reconciliation for PostgreSQL/Neo4j/Elasticsearch mismatches and prove it repairs deleted, stale, and duplicate projections.
 - [ ] Run at least two instances of each stateless application service and demonstrate independent scaling of search and travel workloads.
-- [ ] Document honest Elasticsearch and Neo4j database scaling/availability limits; do not confuse application replicas with database clustering.
-- [ ] Ensure readiness removes unhealthy instances from routing and bounded timeouts/circuit breakers prevent cascading waits.
-- [ ] Define fallbacks: browse when search fails, popular travels when recommendations fail, queued indexing when Elasticsearch fails, and visible pending state when payments fail.
-- [ ] Propagate one trace/request ID from browser through gateway, services, event relays, and provider calls; redact structured logs.
-- [ ] Create repeatable load scenarios for search/autocomplete, subscriptions, dashboards, and mixed user journeys.
+- [x] Document honest Elasticsearch and Neo4j database scaling/availability limits; do not confuse application replicas with database clustering.
+- [x] Ensure readiness removes unhealthy instances from routing and bounded timeouts/circuit breakers prevent cascading waits. (Bounded timeouts everywhere, circuit breakers, gateway read retries; Docker DNS limitation documented in [operations](docs/operations.md#scaling-and-its-limits).)
+- [x] Define fallbacks: browse when search fails, popular travels when recommendations fail, queued indexing when Elasticsearch fails, and visible pending state when payments fail.
+- [x] Propagate one trace/request ID from browser through gateway, services, event relays, and provider calls; redact structured logs.
+- [x] Create repeatable load scenarios for search/autocomplete, subscriptions, dashboards, and mixed user journeys. (`scripts/load/load.mjs`; drills in `scripts/load/drill.mjs`.)
 - [ ] Demonstrate audited actions complete under five seconds at the documented concurrency; capture p50/p95/p99 latency, throughput, errors, and environment details.
 - [ ] Kill one service replica and separately stop Elasticsearch, Neo4j, and a payment simulator; verify expected degraded behavior and recovery.
 - [ ] Restart stateful services and verify persistence, replay, and projection catch-up without duplicates or data loss.

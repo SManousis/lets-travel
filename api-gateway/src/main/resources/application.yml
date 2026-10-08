@@ -5,6 +5,24 @@ spring:
     gateway:
       server:
         webflux:
+          # Bounded waits: a hung service cannot hold gateway connections forever (docs/operations.md).
+          httpclient:
+            connect-timeout: 3000
+            response-timeout: 30s
+          default-filters:
+            # A replica that is down refuses the connection; reads are retried on another one.
+            - name: Retry
+              args:
+                retries: 2
+                methods: GET,HEAD
+                series: ""
+                statuses: BAD_GATEWAY
+                exceptions: java.io.IOException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
           routes:
             - id: auth
               uri: ${services.auth.url}
@@ -21,7 +39,7 @@ spring:
             - id: engagement
               uri: ${services.engagement.url}
               predicates:
-                - Path=/api/managers,/api/managers/**,/api/subscriptions,/api/subscriptions/**,/api/managed-travels,/api/managed-travels/**,/api/feedback,/api/feedback/**,/api/reports,/api/reports/**,/api/admin/reports,/api/admin/reports/**,/api/dashboards,/api/dashboards/**
+                - Path=/api/managers,/api/managers/**,/api/subscriptions,/api/subscriptions/**,/api/managed-travels,/api/managed-travels/**,/api/feedback,/api/feedback/**,/api/reports,/api/reports/**,/api/admin/reports,/api/admin/reports/**,/api/admin/events,/api/admin/events/**,/api/dashboards,/api/dashboards/**
             - id: search
               uri: ${services.search.url}
               predicates:

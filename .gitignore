@@ -14,3 +14,4 @@ infra/tls/certs/
 .ci-secrets/
 pass.md
 
+load-results/

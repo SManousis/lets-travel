@@ -29,6 +29,8 @@ export async function apiResult<T>(context: ApiContext, path: string, options: A
       signal: options.signal,
       headers: {
         Authorization: `Bearer ${context.token}`,
+        // One ID per call; the gateway and every service log it, so a problem can be traced end to end.
+        "X-Request-ID": crypto.randomUUID(),
         ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
         ...options.headers,
       },

@@ -1,5 +1,6 @@
 package com.travelplan.travel.recommend;
 
+import com.travelplan.travel.Neo4jStartup;
 import com.travelplan.travel.recommend.RecommendationEngine.History;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -48,11 +49,13 @@ public class RecommendationGraph {
 
     public RecommendationGraph(Driver driver) {
         this.driver = driver;
-        try (Session session = driver.session()) {
-            session.run("CREATE CONSTRAINT travel_history_user IF NOT EXISTS FOR (h:TravelHistory) REQUIRE h.userId IS UNIQUE").consume();
-            session.run("CREATE CONSTRAINT subscription_state_id IF NOT EXISTS FOR (s:SubscriptionState) REQUIRE s.id IS UNIQUE").consume();
-            session.run("CREATE CONSTRAINT processed_event_id IF NOT EXISTS FOR (e:ProcessedEvent) REQUIRE e.id IS UNIQUE").consume();
-        }
+        Neo4jStartup.run("Recommendation schema setup", () -> {
+            try (Session session = driver.session()) {
+                session.run("CREATE CONSTRAINT travel_history_user IF NOT EXISTS FOR (h:TravelHistory) REQUIRE h.userId IS UNIQUE").consume();
+                session.run("CREATE CONSTRAINT subscription_state_id IF NOT EXISTS FOR (s:SubscriptionState) REQUIRE s.id IS UNIQUE").consume();
+                session.run("CREATE CONSTRAINT processed_event_id IF NOT EXISTS FOR (e:ProcessedEvent) REQUIRE e.id IS UNIQUE").consume();
+            }
+        });
     }
 
     public enum Outcome { APPLIED, DUPLICATE, STALE }

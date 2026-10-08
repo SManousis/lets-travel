@@ -10,12 +10,14 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Propagates a safe X-Request-ID and writes one structured log line per request.
+ * Propagates a safe X-Request-ID, keeps it in the logging context while the request runs ({@link RequestIds})
+ * and writes one structured log line per request.
  * Never logs headers, so bearer tokens cannot leak into logs.
  */
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -47,14 +49,16 @@ public class RequestTraceFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String incoming = request.getHeader("X-Request-ID");
+        String incoming = request.getHeader(RequestIds.HEADER);
         String id = isSafe(incoming) ? incoming : UUID.randomUUID().toString();
-        response.setHeader("X-Request-ID", id);
+        response.setHeader(RequestIds.HEADER, id);
+        MDC.put(RequestIds.LOG_KEY, id);
         try {
             chain.doFilter(request, response);
         } finally {
             log.info("{\"timestamp\":\"{}\",\"service\":\"{}\",\"instanceId\":\"{}\",\"severity\":\"INFO\",\"traceId\":\"{}\",\"operation\":\"{}\",\"status\":\"{}\"}",
                     Instant.now(), serviceName, instanceId, id, request.getMethod() + " " + request.getRequestURI(), response.getStatus());
+            MDC.remove(RequestIds.LOG_KEY);
         }
     }
 }

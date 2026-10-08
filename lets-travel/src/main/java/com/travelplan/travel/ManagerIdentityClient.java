@@ -1,5 +1,6 @@
 package com.travelplan.travel;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ final class ManagerIdentityClient {
                 .GET()
                 .build();
         try {
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 404 || response.statusCode() == 409)
                 throw new TravelStore.Conflict("MANAGER_NOT_ACTIVE");
             if (response.statusCode() != 200) throw new DependencyUnavailable("DEPENDENCY_UNAVAILABLE");

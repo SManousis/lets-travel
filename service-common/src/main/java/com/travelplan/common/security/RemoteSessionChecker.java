@@ -1,5 +1,6 @@
 package com.travelplan.common.security;
 
+import com.travelplan.common.CircuitBreakers;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -25,7 +26,7 @@ public class RemoteSessionChecker implements SessionChecker {
                     .header("Authorization", "Bearer " + bearerToken)
                     .header("X-Internal-Service-Token", serviceToken)
                     .POST(HttpRequest.BodyPublishers.noBody()).build();
-            int status = client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode();
+            int status = CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.discarding()).statusCode();
             if (status == 200) return Result.ACTIVE;
             if (status == 401 || status == 403) return Result.DENIED;
             return Result.UNAVAILABLE;

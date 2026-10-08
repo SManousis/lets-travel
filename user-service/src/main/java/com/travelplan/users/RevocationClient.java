@@ -1,5 +1,6 @@
 package com.travelplan.users;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ public class RevocationClient {
                 .timeout(Duration.ofSeconds(6)).header("X-Internal-Service-Token", token)
                 .POST(HttpRequest.BodyPublishers.noBody()).build();
         try {
-            if (client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode() != 204)
+            if (CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.discarding()).statusCode() != 204)
                 throw new UserStore.Conflict("REVOCATION_UNAVAILABLE");
         } catch (IOException ex) {
             throw new UserStore.Conflict("REVOCATION_UNAVAILABLE");
