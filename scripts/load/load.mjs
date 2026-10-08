@@ -28,6 +28,9 @@ const scenarioName = args.scenario ?? "mixed";
 const concurrency = Number(args.concurrency ?? 10);
 const durationSeconds = Number(args.duration ?? 30);
 const budgetMs = Number(args["budget-ms"] ?? 5000);
+// Right after a deployment services are still starting; wait (up to this many seconds) until search answers
+// before measuring, so the run measures the release and not its cold start.
+const warmupSeconds = Number(args.warmup ?? 0);
 const outDir = args.out ?? "load-results";
 const baseUrl = (process.env.BASE_URL ?? "https://localhost:8443").replace(/\/+$/, "");
 if (process.env.INSECURE_TLS === "1") process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -182,6 +185,15 @@ async function main() {
     return null;
   }) : null;
   const contexts = tokens.map(token => ({ token, adminToken, travel }));
+  if (warmupSeconds > 0) {
+    const until = Date.now() + warmupSeconds * 1000;
+    let ready = false;
+    while (!ready && Date.now() < until) {
+      ready = (await call("warmup", "/api/search/travels?q=warmup&page=0&size=1", { token: tokens[0] })).status === 200;
+      if (!ready) await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+    console.log(ready ? "Warm-up done: search answers." : `Search still not answering after ${warmupSeconds}s; measuring anyway.`);
+  }
 
   const results = [];
   for (const name of names) {

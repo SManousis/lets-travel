@@ -147,6 +147,8 @@ pipeline {
           file(credentialsId: 'lets-travel-release-env', variable: 'RELEASE_ENV_FILE')
         ]) {
           sh '''
+            # Jenkins traces every command (sh -x); tracing would print each secret the file sets.
+            set +x
             set -eu
             set -a
             . "$RELEASE_ENV_FILE"
@@ -159,19 +161,22 @@ pipeline {
         }
       }
     }
-    // Performance smoke against the deployed release: search with two users for 15 seconds, p99 under 5 s.
+    // Performance smoke against the deployed release: once search answers (cold start), two users search for 15 s;
+    // p99 must stay under 5 s with under 1% errors.
     stage('Post-deploy smoke') {
       when { expression { env.BRANCH_NAME == 'main' || (!env.BRANCH_NAME?.trim() && env.GIT_BRANCH in ['main', 'origin/main']) } }
       steps {
         withCredentials([file(credentialsId: 'lets-travel-release-env', variable: 'RELEASE_ENV_FILE')]) {
           sh '''
+            # Jenkins traces every command (sh -x); tracing would print each secret the file sets.
+            set +x
             set -eu
             set -a
             . "$RELEASE_ENV_FILE"
             set +a
             export BASE_URL="${DEPLOY_BASE_URL:-https://deploy-host:8443}" INSECURE_TLS=1 LOAD_ACCOUNTS=admin
             export ADMIN_EMAIL="$ADMIN_USERNAME"
-            node scripts/load/load.mjs --scenario search --concurrency 2 --duration 15 --out reports/smoke
+            node scripts/load/load.mjs --scenario search --concurrency 2 --duration 15 --warmup 120 --out reports/smoke
           '''
         }
       }
