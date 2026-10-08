@@ -1,5 +1,7 @@
 package com.travelplan.engagement;
 
+import com.travelplan.common.ServiceUrls;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -22,7 +24,7 @@ final class UserManagerClient {
 
     UserManagerClient(@Value("${services.users.url:http://127.0.0.1:8082}") String usersUrl,
                       @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
-        this.usersUrl = usersUrl.replaceAll("/+$", "");
+        this.usersUrl = ServiceUrls.withoutTrailingSlashes(usersUrl);
         this.serviceToken = serviceToken;
     }
 

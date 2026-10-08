@@ -1,5 +1,7 @@
 package com.travelplan.engagement;
 
+import com.travelplan.common.ServiceUrls;
+
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -29,7 +31,7 @@ class TravelReservationClient {
 
     TravelReservationClient(@Value("${services.travel.url:http://127.0.0.1:8083}") String travelUrl,
                             @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
-        this.travelUrl = travelUrl.replaceAll("/+$", "");
+        this.travelUrl = ServiceUrls.withoutTrailingSlashes(travelUrl);
         this.serviceToken = serviceToken;
     }
 
