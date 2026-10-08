@@ -38,6 +38,11 @@
       PAYPAL_SANDBOX_CLIENT_ID: "{{ paypal_sandbox_client_id | default(lookup('ansible.builtin.env', 'PAYPAL_SANDBOX_CLIENT_ID'), true) }}"
       PAYPAL_SANDBOX_CLIENT_SECRET: "{{ paypal_sandbox_client_secret | default(lookup('ansible.builtin.env', 'PAYPAL_SANDBOX_CLIENT_SECRET'), true) }}"
       STRIPE_WEBHOOK_SECRET: "{{ stripe_webhook_secret | default(lookup('ansible.builtin.env', 'STRIPE_WEBHOOK_SECRET'), true) }}"
+      # Demo and audit environments only: offers the simulated "test card" (no real money). Off unless set.
+      PAYMENT_TEST_PROVIDER_ENABLED: >-
+        {{ payment_test_provider_enabled
+           | default(lookup('ansible.builtin.env', 'PAYMENT_TEST_PROVIDER_ENABLED'), true) | default('false', true) }}
+      PAYMENT_TEST_WEBHOOK_SECRET: "{{ payment_test_webhook_secret | default(lookup('ansible.builtin.env', 'PAYMENT_TEST_WEBHOOK_SECRET'), true) }}"
   tasks:
     - name: Validate release identity and registry input
       ansible.builtin.assert:

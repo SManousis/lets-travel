@@ -118,6 +118,8 @@ services:
       AUTH_TOKEN_SECRET: "${AUTH_TOKEN_SECRET:-replace-with-at-least-32-random-characters}"
       AUTH_INTERNAL_SERVICE_TOKEN: "${AUTH_INTERNAL_SERVICE_TOKEN:-change-me-internal}"
       AUTH_SERVICE_URL: http://auth-service:8081
+      # Confirms a travel's organiser is an active travel manager when a travel is created.
+      USER_SERVICE_URL: http://user-service:8082
       # Told about every travel change so the search index follows (docs/search.md).
       SEARCH_SERVICE_URL: http://search-service:8086
       ENGAGEMENT_SERVICE_URL: http://engagement-service:8085

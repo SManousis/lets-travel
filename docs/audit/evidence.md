@@ -1,7 +1,11 @@
 # Audit evidence record
 
-Final review source: 01-edu Travel-Plan exercise README, reviewed 2026-09-16. The implementation uses Java 21/Spring Boot 4, Docker Compose, PostgreSQL 17, Neo4j 2026, React/Vite, Jenkins, SonarQube, Ansible, Vault, and an OTLP collector. Use the [manual testing guide](manual-testing-guide.md) to record final PASS/FAIL/BLOCKED evidence for the current branch.
+One row per manual check or rehearsal, newest first. Automated runs are in [results/](results/); the questions they
+answer are mapped in [final audit](final-audit.md).
 
-Run `scripts/audit/final-rehearsal.sh` from the repository root. It validates clean Compose configuration, backend packaging, UI production output, unauthenticated denial, and repository secret scanning. Runtime evidence is collected with the security, tracing, resilience, and browser walkthroughs; each explicitly records the single-host/database-HA limitations.
+| Date | Commit | Environment | Item | Command or steps | Expected | Actual | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| | | | | | | | |
 
-No raw payment credentials are accepted or persisted. Test defaults are documented placeholders and must be replaced through environment/Vault for a deployment.
+Items still to record: browser matrix ([browser checks](browser-checks.md)), load run and failure drills
+([operations](../operations.md#load-tests)), deployment rehearsals and the blocked-PR evidence ([CI](../ci.md)).

@@ -376,11 +376,11 @@ Evidence: `docs/audit/phase-6-verification.md`. Design: `docs/feedback-and-repor
 
 **Main files:** `README.md`, `docs/architecture.md`, `docs/data-model.md`, `docs/security.md`, `docs/operations.md`, `docs/audit/`, `scripts/audit/`.
 
-- [ ] Update setup instructions, prerequisites, safe example configuration, local start/stop, seed data, and troubleshooting for all services.
-- [ ] Document how Elasticsearch implements search/autocomplete and how Neo4j produces recommendations from at least three travel fields.
-- [ ] Document independent service scaling and operation, plus PostgreSQL/Neo4j/Elasticsearch consistency and recovery techniques.
-- [ ] Document the exact capabilities and permissions of Admins, Travel Managers, and Travelers.
-- [ ] Document package/library choices, boundaries, public/internal APIs, event schemas, data ownership, indexes, and migrations.
+- [x] Update setup instructions, prerequisites, safe example configuration, local start/stop, seed data, and troubleshooting for all services.
+- [x] Document how Elasticsearch implements search/autocomplete and how Neo4j produces recommendations from at least three travel fields.
+- [x] Document independent service scaling and operation, plus PostgreSQL/Neo4j/Elasticsearch consistency and recovery techniques.
+- [x] Document the exact capabilities and permissions of Admins, Travel Managers, and Travelers.
+- [x] Document package/library choices, boundaries, public/internal APIs, event schemas, data ownership, indexes, and migrations.
 - [ ] Prepare deterministic demo users and data for all roles without committing real credentials or personal information.
 - [ ] Run the two-account personalized recommendation comparison required by the audit and retain sanitized results.
 - [ ] Run every functional audit journey: search, autocomplete, recommendations, dashboards, subscriptions, cutoff, payments, feedback, listings, subscribers, analytics, profiles, login, and RBAC.
