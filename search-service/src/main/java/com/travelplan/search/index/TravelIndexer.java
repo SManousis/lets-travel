@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -45,7 +46,7 @@ public class TravelIndexer {
     private final Set<UUID> pending = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Failure> failures = new ConcurrentHashMap<>();
     private volatile Instant lastAppliedAt;
-    private volatile Rebuild lastRebuild;
+    private final AtomicReference<Rebuild> lastRebuild = new AtomicReference<>();
 
     public TravelIndexer(TravelIndex index, TravelServiceClient travels, Clock clock,
                          @Value("${search.sync.rebuild-interval:PT5M}") Duration rebuildInterval,
@@ -100,7 +101,7 @@ public class TravelIndexer {
     @Scheduled(fixedDelayString = "${search.sync.rebuild-check-interval:PT30S}",
             initialDelayString = "${search.sync.rebuild-initial-delay:PT5S}")
     public void scheduledRebuild() {
-        Rebuild last = lastRebuild;
+        Rebuild last = lastRebuild.get();
         boolean due = last == null || !"SUCCEEDED".equals(last.outcome())
                 || last.finishedAt().plus(rebuildInterval).isBefore(clock.instant());
         if (!due) return;
@@ -133,12 +134,12 @@ public class TravelIndexer {
                 throw ex;
             }
             index.deleteIndicesOlderThan(name);
-            lastRebuild = new Rebuild(name, documents.size(), started, clock.instant(), "SUCCEEDED", null);
+            lastRebuild.set(new Rebuild(name, documents.size(), started, clock.instant(), "SUCCEEDED", null));
             lastAppliedAt = clock.instant();
             log.info("Search index rebuilt: {} with {} travels", name, documents.size());
-            return lastRebuild;
+            return lastRebuild.get();
         } catch (RuntimeException ex) {
-            lastRebuild = new Rebuild(name, 0, started, clock.instant(), "FAILED", reason(ex));
+            lastRebuild.set(new Rebuild(name, 0, started, clock.instant(), "FAILED", reason(ex)));
             throw ex;
         }
     }
@@ -154,7 +155,7 @@ public class TravelIndexer {
             available = false;
         }
         return new Status(TravelIndex.ALIAS, current, TravelIndex.MAPPING_VERSION, available, documents,
-                pending.size(), new ArrayList<>(failures.values()), lastAppliedAt, lastRebuild);
+                pending.size(), new ArrayList<>(failures.values()), lastAppliedAt, lastRebuild.get());
     }
 
     public Instant lastAppliedAt() {
