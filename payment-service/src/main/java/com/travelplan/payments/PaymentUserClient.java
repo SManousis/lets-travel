@@ -1,5 +1,7 @@
 package com.travelplan.payments;
 
+import com.travelplan.common.ServiceUrls;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -18,7 +20,7 @@ final class PaymentUserClient {
 
     PaymentUserClient(@Value("${services.user.url:http://127.0.0.1:8082}") String baseUrl,
                       @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
-        this.baseUrl = baseUrl.replaceAll("/+$", "");
+        this.baseUrl = ServiceUrls.withoutTrailingSlashes(baseUrl);
         this.serviceToken = serviceToken;
     }
 

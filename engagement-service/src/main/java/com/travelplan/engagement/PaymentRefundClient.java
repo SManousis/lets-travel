@@ -1,5 +1,7 @@
 package com.travelplan.engagement;
 
+import com.travelplan.common.ServiceUrls;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -21,7 +23,7 @@ class PaymentRefundClient {
 
     PaymentRefundClient(@Value("${services.payments.url:http://127.0.0.1:8084}") String paymentsUrl,
                         @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
-        this.paymentsUrl = paymentsUrl.replaceAll("/+$", "");
+        this.paymentsUrl = ServiceUrls.withoutTrailingSlashes(paymentsUrl);
         this.serviceToken = serviceToken;
     }
 

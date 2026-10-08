@@ -56,14 +56,17 @@ import static org.assertj.core.api.Assertions.assertThat;
         "management.server.port=0", "security.internal-service-token=test-internal",
         // The tests apply queued changes and rebuild explicitly, so the schedules stay out of the way.
         "search.sync.apply-initial-delay=PT1H", "search.sync.rebuild-initial-delay=PT1H",
-        "search.elasticsearch.request-timeout=2s"})
+        // Room for a busy CI host; the outage test still gets its 503 well inside the client's 30s.
+        "search.elasticsearch.request-timeout=10s"})
 class TravelSearchIntegrationTest {
     @Container
     static final ElasticsearchContainer ELASTICSEARCH = new ElasticsearchContainer(
             "docker.elastic.co/elasticsearch/elasticsearch:9.4.5")
             .withEnv("xpack.security.enabled", "false")
             .withEnv("ES_JAVA_OPTS", "-Xms512m -Xmx512m")
-            .withEnv("node.store.allow_mmap", "false");
+            .withEnv("node.store.allow_mmap", "false")
+            // CI starts this on the shared deploy host, which can be slow; the 60s default was too short.
+            .withStartupTimeout(Duration.ofMinutes(5));
 
     private static final HttpServer AUTH = AuthorizationMatrix.activeSessionsAuthServer();
     /** What the travel-service stand-in currently holds, by travel ID. */

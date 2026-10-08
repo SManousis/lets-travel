@@ -1,5 +1,7 @@
 package com.travelplan.users;
 
+import com.travelplan.common.ServiceUrls;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -18,7 +20,7 @@ public class RevocationClient {
 
     public RevocationClient(@Value("${services.auth.url:http://auth-service:8081}") String url,
                             @Value("${security.internal-service-token:change-me-internal}") String token) {
-        this.baseUrl = url.replaceAll("/+$", "");
+        this.baseUrl = ServiceUrls.withoutTrailingSlashes(url);
         this.token = token;
     }
 

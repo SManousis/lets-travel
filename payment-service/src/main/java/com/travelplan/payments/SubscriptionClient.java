@@ -1,5 +1,7 @@
 package com.travelplan.payments;
 
+import com.travelplan.common.ServiceUrls;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -31,7 +33,7 @@ class SubscriptionClient {
 
     SubscriptionClient(@Value("${services.engagement.url:http://127.0.0.1:8085}") String engagementUrl,
                        @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
-        this.engagementUrl = engagementUrl.replaceAll("/+$", "");
+        this.engagementUrl = ServiceUrls.withoutTrailingSlashes(engagementUrl);
         this.serviceToken = serviceToken;
     }
 

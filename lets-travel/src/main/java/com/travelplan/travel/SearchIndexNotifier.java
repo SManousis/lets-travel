@@ -1,5 +1,7 @@
 package com.travelplan.travel;
 
+import com.travelplan.common.ServiceUrls;
+
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.net.URI;
@@ -37,7 +39,7 @@ class SearchIndexNotifier {
 
     SearchIndexNotifier(@Value("${services.search.url:}") String searchUrl,
                         @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
-        this.searchUrl = searchUrl.replaceAll("/+$", "");
+        this.searchUrl = ServiceUrls.withoutTrailingSlashes(searchUrl);
         this.serviceToken = serviceToken;
     }
 

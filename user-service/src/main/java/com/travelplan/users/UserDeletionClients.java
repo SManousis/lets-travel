@@ -1,5 +1,7 @@
 package com.travelplan.users;
 
+import com.travelplan.common.ServiceUrls;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -22,8 +24,8 @@ final class UserDeletionClients {
     UserDeletionClients(@Value("${services.payment.url:http://127.0.0.1:8084}") String paymentUrl,
                         @Value("${services.travel.url:http://127.0.0.1:8083}") String travelUrl,
                         @Value("${security.internal-service-token:change-me-internal}") String serviceToken) {
-        this.paymentUrl = paymentUrl.replaceAll("/+$", "");
-        this.travelUrl = travelUrl.replaceAll("/+$", "");
+        this.paymentUrl = ServiceUrls.withoutTrailingSlashes(paymentUrl);
+        this.travelUrl = ServiceUrls.withoutTrailingSlashes(travelUrl);
         this.serviceToken = serviceToken;
     }
 
