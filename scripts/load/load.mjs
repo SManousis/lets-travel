@@ -10,6 +10,8 @@
 //   INSECURE_TLS=1   accept the local self-signed certificate
 //   ADMIN_EMAIL / ADMIN_PASSWORD   an admin account (dashboards scenario, setup checks)
 //   LOAD_PASSWORD    password for the traveler accounts the run registers (default generated)
+//   LOAD_ACCOUNTS=admin  use the admin account for every user instead of registering travelers
+//                    (post-deploy smoke tests, so production-like data is not touched)
 // Each run registers its own traveler accounts (load-<run>-<n>@example.test), so runs never
 // interfere with each other or with real users.
 
@@ -164,10 +166,16 @@ function environment() {
 async function main() {
   const names = scenarioName === "all" ? ["search", "autocomplete", "dashboards", "subscriptions", "mixed"] : [scenarioName];
   if (names.some(name => !scenarios[name])) throw new Error(`Unknown scenario ${scenarioName}`);
-  console.log(`Preparing ${concurrency} traveler accounts against ${baseUrl} …`);
-  const tokens = await travelers(concurrency);
   const adminToken = process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD
     ? await login(process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD) : null;
+  let tokens;
+  if (process.env.LOAD_ACCOUNTS === "admin") {
+    if (!adminToken) throw new Error("LOAD_ACCOUNTS=admin needs ADMIN_EMAIL and ADMIN_PASSWORD");
+    tokens = Array(concurrency).fill(adminToken);
+  } else {
+    console.log(`Preparing ${concurrency} traveler accounts against ${baseUrl} …`);
+    tokens = await travelers(concurrency);
+  }
   const needsTravel = names.includes("subscriptions") || names.includes("mixed");
   const travel = needsTravel ? await bookableTravel(tokens[0]).catch(error => {
     if (names.includes("subscriptions")) throw error;

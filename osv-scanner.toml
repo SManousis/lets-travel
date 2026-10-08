@@ -1,0 +1,7 @@
+# Accepted dependency vulnerabilities (the Security scans stage fails on any other).
+# Add an entry only with a recorded decision in docs/security.md, section 7, and an expiry date:
+#
+# [[IgnoredVulns]]
+# id = "GHSA-xxxx-xxxx-xxxx"
+# ignoreUntil = 2026-12-31
+# reason = "Not reachable: ... (decision recorded in docs/security.md)"

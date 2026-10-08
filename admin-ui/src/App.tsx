@@ -2,6 +2,7 @@ import * as React from "react";
 import { api, errorMessage, fetchMe, login, type ApiContext, type Me } from "./lib/api";
 import { homeFor, href, resolveRoute, routes, routesFor, type RouteId } from "./lib/routes";
 import { AccountHome, RegisterPage, SetPasswordPage, roleLabel } from "./features/account/AccountPages";
+import { MyData } from "./features/account/MyData";
 import { UsersPanel } from "./features/users/UsersPanel";
 import { ListingsPanel } from "./features/travels/ListingsPanel";
 import { PaymentsPanel } from "./features/payments/PaymentsPanel";
@@ -42,7 +43,7 @@ function Screen({ route, me, context }: { route: RouteId; me: Me; context: ApiCo
     case "travels": return <TravelerTrips context={context} />;
     case "feedback": return <div className="workflow-stack"><FeedbackPanel context={context} /></div>;
     case "reports": return <div className="workflow-stack"><MyReports context={context} /></div>;
-    case "statistics": return <div className="workflow-stack"><MyStatistics context={context} /></div>;
+    case "statistics": return <div className="workflow-stack"><MyStatistics context={context} /><MyData context={context} /></div>;
     case "listings": return <ListingsPanel context={context} admin={me.role === "ADMIN"} />;
     case "subscribers": return <div className="workflow-stack"><SubscriberManager context={context} /></div>;
     case "travel-feedback": return <div className="workflow-stack"><FeedbackOverview context={context} admin={me.role === "ADMIN"} /></div>;

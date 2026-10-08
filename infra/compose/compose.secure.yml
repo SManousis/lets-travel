@@ -22,7 +22,7 @@ services:
     networks: [backend]
     expose: [8200]
   tls-proxy:
-    image: nginx:1.28.0-alpine
+    image: nginx:1.30.5-alpine
     restart: unless-stopped
     depends_on: [api-gateway, admin-ui]
     volumes: [../proxy/nginx.conf:/etc/nginx/nginx.conf:ro, ../tls/certs:/etc/nginx/tls:ro]

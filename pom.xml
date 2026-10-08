@@ -33,6 +33,13 @@
     <h2.version>2.5.252</h2.version>
     <!-- Timing benchmarks run on demand: -Dsurefire.excludedGroups= -Dgroups=performance -->
     <surefire.excludedGroups>performance</surefire.excludedGroups>
+    <!-- Security patches ahead of Spring Boot 4.1.1's defaults (docs/security.md, scan triage):
+         Tomcat 11.0.24 (GHSA-9xv2-5v5q-p794, GHSA-gcx9-497g-6cp6, GHSA-h3x4-894j-xpx5),
+         Jackson 3.1.5 / 2.21.5 (GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89, GHSA-cxp5-3px4-pw24 and others).
+         Remove each line once the Boot parent ships the same or a newer version. -->
+    <tomcat.version>11.0.25</tomcat.version>
+    <jackson-bom.version>3.1.7</jackson-bom.version>
+    <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
   </properties>
   <dependencyManagement>
     <dependencies>

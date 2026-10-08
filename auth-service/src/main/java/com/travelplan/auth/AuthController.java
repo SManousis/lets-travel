@@ -77,6 +77,10 @@ public class AuthController {
                 return error(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Invalid credentials");
             }
             failedLogins.remove(request.username());
+            if (passwords.upgradeEncoding(identity.passwordHash())) {
+                // Upgrade path: a hash made with an older, cheaper setting is replaced now that the password is known.
+                identities.updatePassword(identity.subject(), passwords.encode(request.password()));
+            }
             return withSession(ResponseEntity.ok(), tokens.startSession(identity));
         });
     }

@@ -1,4 +1,5 @@
 package com.travelplan.users;
+import com.travelplan.common.audit.AuditLog;
 import com.travelplan.common.security.AccessToken;
 import com.travelplan.common.security.Ownership;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,8 +21,9 @@ public class UserController {
     private final UserDeletionService deletion;
     private final UserDeletionClients cleanup;
     private final AccountService accounts;
-    public UserController(UserStore store, UserDeletionService deletion, UserDeletionClients cleanup, AccountService accounts) {
-        this.store = store; this.deletion = deletion; this.cleanup = cleanup; this.accounts = accounts;
+    private final AuditLog audit;
+    public UserController(UserStore store, UserDeletionService deletion, UserDeletionClients cleanup, AccountService accounts, AuditLog audit) {
+        this.store = store; this.deletion = deletion; this.cleanup = cleanup; this.accounts = accounts; this.audit = audit;
     }
     @GetMapping("/api/users") public Page<UserDomain.User> users(@RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) { return page(store.list(), page, size); }
     /** The response carries a one-time password-setup link to hand to the new user. */
@@ -31,11 +33,24 @@ public class UserController {
         PasswordSetupStore.Issued link=accounts.issueSetupLink(u.id());
         CreatedUser created=new CreatedUser(u.id(),u.email(),u.firstName(),u.lastName(),u.role(),u.status(),u.createdAt(),
                 new AccountController.SetupLink(link.token(),link.expiresAt()));
-        store.remember(key,created); return ResponseEntity.status(HttpStatus.CREATED).body(created); }
+        store.remember(key,created);
+        audit.record("USER_CREATED", "USER", u.id(), Map.of("role", u.role()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(created); }
     @GetMapping("/api/users/{id}") public UserDomain.User user(@PathVariable UUID id) { return store.get(id); }
-    @PatchMapping("/api/users/{id}") public UserDomain.User update(@PathVariable UUID id,@Valid @RequestBody UserPatch body) { return store.update(id,body.email(),body.firstName(),body.lastName(),body.role(),body.status()); }
+    @PatchMapping("/api/users/{id}") public UserDomain.User update(@PathVariable UUID id,@Valid @RequestBody UserPatch body) {
+        UserDomain.User before = store.get(id);
+        UserDomain.User after = store.update(id,body.email(),body.firstName(),body.lastName(),body.role(),body.status());
+        Map<String, Object> changes = new LinkedHashMap<>();
+        if (before.role() != after.role()) changes.put("role", before.role() + " -> " + after.role());
+        if (!Objects.equals(before.status(), after.status())) changes.put("status", before.status() + " -> " + after.status());
+        if (!Objects.equals(before.email(), after.email())) changes.put("emailChanged", true);
+        if (!changes.isEmpty()) audit.record("USER_UPDATED", "USER", id, changes);
+        return after;
+    }
     @DeleteMapping("/api/users/{id}") public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        return deletion.delete(id) ? ResponseEntity.noContent().build() : ResponseEntity.accepted().build();
+        boolean finished = deletion.delete(id);
+        audit.record("USER_DELETED", "USER", id, Map.of("completed", finished));
+        return finished ? ResponseEntity.noContent().build() : ResponseEntity.accepted().build();
     }
     // Traveler profiles belong to a user: each user manages their own, admins manage all.
     // A profile the caller may not see is reported as missing (404), never as forbidden.

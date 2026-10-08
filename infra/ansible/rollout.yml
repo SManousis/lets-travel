@@ -1,0 +1,64 @@
+---
+# Rolls out one release (deploy_tag) and checks it through the HTTPS entry point. deploy.yml runs it for the new
+# release and, if anything here fails, again for the previous release (rollback).
+
+- name: Render private release environment for {{ deploy_tag }}
+  ansible.builtin.template:
+    src: release.env.j2
+    dest: "{{ app_dir }}/.env"
+    mode: '0600'
+  no_log: true
+
+- name: Start the data stores
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_dir }}/compose"
+    files: "{{ compose_files }}"
+    env_files:
+      - "{{ app_dir }}/.env"
+    services: [postgres, neo4j, elasticsearch, vault, otel-collector]
+    state: present
+    pull: missing
+    build: never
+    wait: true
+    wait_timeout: 300
+
+# One service at a time, each healthy before the next is replaced, so the platform is never fully down.
+# Each service runs one replica here, so a service itself restarts briefly while it is replaced.
+- name: Roll out service by service, release {{ deploy_tag }}
+  community.docker.docker_compose_v2:
+    project_src: "{{ app_dir }}/compose"
+    files: "{{ compose_files }}"
+    env_files:
+      - "{{ app_dir }}/.env"
+    services: ["{{ item }}"]
+    dependencies: false
+    state: present
+    pull: always
+    build: never
+    wait: true
+    # A cold start on a small host can take minutes; services that lose a startup race restart on their own.
+    wait_timeout: 600
+  loop: [auth-service, user-service, travel-service, payment-service, engagement-service, search-service,
+         api-gateway, admin-ui, tls-proxy]
+
+- name: Wait for HTTPS dashboard readiness
+  ansible.builtin.uri:
+    url: "https://{{ deployment_health_hostname | default('localhost') }}:{{ deployment_health_port | default(8443) }}/health"
+    ca_path: "{{ deployment_ca_path | default(app_dir ~ '/tls/certs/dev-ca.crt') }}"
+    validate_certs: true
+    status_code: 200
+  register: dashboard_health
+  retries: 18
+  delay: 5
+  until: dashboard_health.status == 200
+
+- name: Confirm the HTTPS API reaches the gateway
+  ansible.builtin.uri:
+    url: "https://{{ deployment_health_hostname | default('localhost') }}:{{ deployment_health_port | default(8443) }}/api/users"
+    ca_path: "{{ deployment_ca_path | default(app_dir ~ '/tls/certs/dev-ca.crt') }}"
+    validate_certs: true
+    status_code: 401
+  register: gateway_health
+  retries: 18
+  delay: 5
+  until: gateway_health.status == 401

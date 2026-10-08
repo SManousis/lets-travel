@@ -59,7 +59,8 @@ spring:
       connection-timeout: 5000
       initialization-fail-timeout: 30000
   flyway:
-    locations: classpath:db/migration
+    # {vendor}: PostgreSQL-only migrations (the audit triggers) are skipped on the H2 test database.
+    locations: classpath:db/migration,classpath:db/vendor/{vendor}
 logging:
   pattern:
     # Every line written while a request runs carries its X-Request-ID (see RequestIds).

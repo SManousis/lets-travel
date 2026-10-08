@@ -18,6 +18,8 @@ services:
     url: ${PAYMENT_SERVICE_URL:http://127.0.0.1:8084}
   travel:
     url: ${TRAVEL_SERVICE_URL:http://127.0.0.1:8083}
+  engagement:
+    url: ${ENGAGEMENT_SERVICE_URL:http://127.0.0.1:8085}
 management:
   server:
     address: ${MANAGEMENT_ADDRESS:127.0.0.1}
@@ -46,7 +48,8 @@ spring:
       connection-timeout: 5000
       initialization-fail-timeout: 30000
   flyway:
-    locations: classpath:db/migration
+    # {vendor}: PostgreSQL-only migrations (the audit triggers) are skipped on the H2 test database.
+    locations: classpath:db/migration,classpath:db/vendor/{vendor}
 logging:
   pattern:
     # Every line written while a request runs carries its X-Request-ID (see RequestIds).

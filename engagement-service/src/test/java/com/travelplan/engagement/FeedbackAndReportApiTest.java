@@ -284,6 +284,13 @@ class FeedbackAndReportApiTest {
         assertCode(moderate(admin, UUID.randomUUID().toString(), "DISMISSED", false, "Unknown"), 404, "NOT_FOUND");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE event_type = 'ReportModerated' AND aggregate_id = ?",
                 Long.class, UUID.fromString(first))).isEqualTo(2);
+        // Each decision leaves an audit record naming the admin; the free-text note is not copied into it.
+        assertThat(jdbc.queryForList("SELECT actor_id, actor_role, details FROM audit_event WHERE action = 'REPORT_MODERATED' "
+                + "AND target_id = ? ORDER BY occurred_at", first)).hasSize(2).allSatisfy(row -> {
+            assertThat(row.get("actor_id")).isEqualTo(admin);
+            assertThat(row.get("actor_role")).isEqualTo("ADMIN");
+            assertThat(String.valueOf(row.get("details"))).doesNotContain("Confirmed by the manager");
+        });
 
         // Closed, so the traveler may report again; the upheld report shows up as a count only.
         assertThat(report(traveler, "TRAVELER", reported, UUID.randomUUID()).statusCode()).isEqualTo(201);
@@ -323,6 +330,31 @@ class FeedbackAndReportApiTest {
         assertCode(send("GET", "/api/feedback?managerId=" + injected, UUID.randomUUID(), Role.ADMIN, null, null),
                 400, "VALIDATION_ERROR");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM report", Long.class)).isPositive();
+    }
+
+    // ---- Account deletion --------------------------------------------------------------------
+
+    @Test void deletingAnAccountCancelsItsSubscriptionsAndAnonymizesItsFeedback() throws Exception {
+        UUID finished = travel(manager);
+        rate(traveler, finished, 4, "Lovely trip, ask for Maria at the desk");
+        UUID upcoming = Fixtures.subscription(jdbc, travel(manager), traveler, manager, "PENDING_PAYMENT",
+                LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 5), "UTC");
+
+        HttpRequest cleanup = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/internal/users/" + traveler
+                        + "/personal-data-cleanup")).header("X-Internal-Service-Token", "test-internal")
+                .POST(HttpRequest.BodyPublishers.noBody()).build();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            assertThat(client.send(cleanup, HttpResponse.BodyHandlers.discarding()).statusCode()).isEqualTo(204);
+            assertThat(client.send(cleanup, HttpResponse.BodyHandlers.discarding()).statusCode()).as("repeatable").isEqualTo(204);
+        }
+
+        assertThat(status(upcoming)).isEqualTo("CANCELLED_BY_TRAVELER");
+        var row = jdbc.queryForMap("SELECT author_display_name, comment, rating FROM feedback WHERE traveler_id = ?", traveler);
+        assertThat(row.get("author_display_name")).isEqualTo("Former traveler");
+        assertThat(row.get("comment")).isNull();
+        assertThat(((Number) row.get("rating")).intValue()).as("the manager's rating history is kept").isEqualTo(4);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_event WHERE action = 'ACCOUNT_DATA_CLEANED' AND target_id = ?",
+                Long.class, traveler.toString())).isEqualTo(2);
     }
 
     // ---- Helpers -----------------------------------------------------------------------------

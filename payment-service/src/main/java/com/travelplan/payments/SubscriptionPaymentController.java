@@ -1,5 +1,6 @@
 package com.travelplan.payments;
 
+import com.travelplan.common.audit.AuditLog;
 import com.travelplan.common.security.AccessToken;
 import com.travelplan.common.security.Role;
 import com.travelplan.payments.SubscriptionPayment.State;
@@ -36,7 +37,10 @@ class SubscriptionPaymentController {
     private static final Logger log = LoggerFactory.getLogger(SubscriptionPaymentController.class);
     private final SubscriptionPaymentService service;
 
-    SubscriptionPaymentController(SubscriptionPaymentService service) {
+    private final AuditLog audit;
+
+    SubscriptionPaymentController(SubscriptionPaymentService service, AuditLog audit) {
+        this.audit = audit;
         this.service = service;
     }
 
@@ -91,8 +95,11 @@ class SubscriptionPaymentController {
     /** engagement-service: a paid subscription was cancelled. 200 with the payment, 204 if nothing was paid. */
     @PostMapping("/internal/subscriptions/{subscriptionId}/refund")
     ResponseEntity<PaymentView> refund(@PathVariable UUID subscriptionId) {
-        return service.refundForSubscription(subscriptionId).map(payment -> ResponseEntity.ok(view(payment)))
-                .orElseGet(() -> ResponseEntity.noContent().build());
+        return service.refundForSubscription(subscriptionId).map(payment -> {
+            audit.record("REFUND_REQUESTED", "PAYMENT", payment.paymentId(), Map.of("subscriptionId", subscriptionId,
+                    "amountMinor", payment.amountMinor(), "currency", payment.currency(), "state", payment.state()));
+            return ResponseEntity.ok(view(payment));
+        }).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     private static String idempotencyKey(String raw) {
