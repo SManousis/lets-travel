@@ -1,5 +1,6 @@
 package com.travelplan.travel;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 
 import jakarta.annotation.PreDestroy;
@@ -58,7 +59,7 @@ class SearchIndexNotifier {
                 .POST(HttpRequest.BodyPublishers.noBody())
                 .build();
         try {
-            int status = client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode();
+            int status = CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.discarding()).statusCode();
             if (status != 202) log.warn("Search index notification for travel {} answered {}", travelId, status);
         } catch (IOException ex) {
             log.warn("Search index notification for travel {} failed: {}", travelId, ex.getClass().getSimpleName());

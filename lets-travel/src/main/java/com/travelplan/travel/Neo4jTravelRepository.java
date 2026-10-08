@@ -39,7 +39,7 @@ final class Neo4jTravelRepository {
 
     Neo4jTravelRepository(Driver driver) {
         this.driver = driver;
-        initializeSchema();
+        Neo4jStartup.run("Travel schema setup", this::initializeSchema);
     }
 
     private void initializeSchema() {

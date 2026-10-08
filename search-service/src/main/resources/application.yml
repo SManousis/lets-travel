@@ -56,3 +56,7 @@ management:
   health:
     elasticsearch:
       enabled: true
+logging:
+  pattern:
+    # Every line written while a request runs carries its X-Request-ID (see RequestIds).
+    level: "%5p [%X{requestId:-}]"

@@ -58,6 +58,9 @@ class GatewayRoleMatrixTest {
         MATRIX.put("/api/reports", Role.TRAVELER);
         MATRIX.put("/api/admin/reports", Role.ADMIN);
         MATRIX.put("/api/admin/reports/123", Role.ADMIN);
+        MATRIX.put("/api/admin/events", Role.ADMIN);
+        MATRIX.put("/api/admin/events/status", Role.ADMIN);
+        MATRIX.put("/api/admin/events/parked", Role.ADMIN);
         MATRIX.put("/api/destinations", Role.TRAVELER); // reads; writes are ADMIN-only, see below
         MATRIX.put("/api/payment-webhooks/stripe", null);
         MATRIX.put("/api/payment-webhooks/test", null);

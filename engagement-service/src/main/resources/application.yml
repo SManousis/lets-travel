@@ -53,3 +53,7 @@ spring:
       initialization-fail-timeout: 30000
   flyway:
     locations: classpath:db/migration
+logging:
+  pattern:
+    # Every line written while a request runs carries its X-Request-ID (see RequestIds).
+    level: "%5p [%X{requestId:-}]"

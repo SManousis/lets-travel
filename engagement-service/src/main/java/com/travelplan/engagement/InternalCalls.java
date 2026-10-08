@@ -1,33 +1,25 @@
 package com.travelplan.engagement;
 
+import com.travelplan.common.RequestIds;
+import com.travelplan.common.CircuitBreakers;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.UUID;
-import java.util.regex.Pattern;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import tools.jackson.databind.JsonNode;
 
 /** Shared helpers for the bounded internal service clients. */
 final class InternalCalls {
-    private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
-
     private InternalCalls() {}
 
     static String requestId() {
-        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
-            String incoming = attributes.getRequest().getHeader("X-Request-ID");
-            if (incoming != null && SAFE_ID.matcher(incoming).matches()) return incoming;
-        }
-        return UUID.randomUUID().toString();
+        return RequestIds.current();
     }
 
     /** Sends a request; an unreachable dependency becomes DependencyUnavailable (503). */
     static HttpResponse<String> send(HttpClient client, HttpRequest request) {
         try {
-            return client.send(request, HttpResponse.BodyHandlers.ofString());
+            return CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException ex) {
             throw new ManagerPageService.DependencyUnavailable();
         } catch (InterruptedException ex) {

@@ -1,5 +1,6 @@
 package com.travelplan.payments;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ final class PaymentUserClient {
                         + "/payment-eligibility"))
                 .timeout(Duration.ofSeconds(6)).header("X-Internal-Service-Token", serviceToken).GET().build();
         try {
-            int status = client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode();
+            int status = CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.discarding()).statusCode();
             if (status == 204) return;
             if (status == 404) throw new PaymentDomain.NotFound();
             if (status == 409) throw new PaymentDomain.Conflict("USER_NOT_ACTIVE");

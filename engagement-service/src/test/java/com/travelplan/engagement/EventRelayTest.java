@@ -47,10 +47,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class EventRelayTest {
     private static final List<JsonNode> received = new CopyOnWriteArrayList<>();
     private static final AtomicInteger travelStatus = new AtomicInteger(200);
+    private static final java.util.concurrent.atomic.AtomicReference<String> travelAnswer = new java.util.concurrent.atomic.AtomicReference<>("");
     private static final HttpServer TRAVEL = travelService();
     private final JsonMapper json = JsonMapper.builder().build();
 
     @Autowired OutboxRelay relay;
+    @Autowired EventQueueController queue;
     @Autowired JdbcTemplate jdbc;
     @Value("${local.server.port}") int port;
 
@@ -65,6 +67,7 @@ class EventRelayTest {
         jdbc.update("DELETE FROM outbox_event");
         received.clear();
         travelStatus.set(200);
+        travelAnswer.set("");
     }
 
     @Test void deliversEachEventOnceOldestFirstAndMarksItPublished() {
@@ -96,6 +99,34 @@ class EventRelayTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE published_at IS NULL", Long.class)).isEqualTo(1);
 
         travelStatus.set(200);
+        assertThat(relay.relay()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE published_at IS NULL", Long.class)).isZero();
+    }
+
+    @Test void aRejectedEventIsParkedWithoutBlockingTheOthersAndCanBeSentAgain() {
+        Outbox.write(jdbc, "SubscriptionReserved", UUID.randomUUID(), 1, Instant.parse("2026-10-08T10:00:01Z"), Map.of("status", "PENDING_PAYMENT"));
+        Outbox.write(jdbc, "SubscriptionConfirmed", UUID.randomUUID(), 1, Instant.parse("2026-10-08T10:00:02Z"), Map.of("status", "CONFIRMED"));
+        UUID good = jdbc.queryForObject("SELECT event_id FROM outbox_event WHERE event_type = 'SubscriptionReserved'", UUID.class);
+        UUID bad = jdbc.queryForObject("SELECT event_id FROM outbox_event WHERE event_type = 'SubscriptionConfirmed'", UUID.class);
+        travelAnswer.set("{\"applied\":1,\"rejected\":[{\"eventId\":\"" + bad + "\",\"reason\":\"IllegalArgumentException: travelerId\"}]}");
+
+        assertThat(relay.relay()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT published_at IS NOT NULL FROM outbox_event WHERE event_id = ?", Boolean.class, good)).isTrue();
+        var parked = (List<?>) queue.parked().getBody();
+        assertThat(parked).singleElement().satisfies(item -> {
+            EventQueueController.Parked event = (EventQueueController.Parked) item;
+            assertThat(event.eventId()).isEqualTo(bad);
+            assertThat(event.error()).isEqualTo("IllegalArgumentException: travelerId");
+        });
+        assertThat((EventQueueController.Status) queue.status().getBody()).satisfies(status -> {
+            assertThat(status.pending()).isZero();
+            assertThat(status.parked()).isEqualTo(1);
+        });
+        assertThat(relay.relay()).as("parked events are not resent on their own").isZero();
+
+        travelAnswer.set("");
+        assertThat(queue.retry(bad).getStatusCode().value()).isEqualTo(204);
+        assertThat(queue.retry(bad).getStatusCode().value()).as("no longer parked").isEqualTo(404);
         assertThat(relay.relay()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE published_at IS NULL", Long.class)).isZero();
     }
@@ -146,7 +177,9 @@ class EventRelayTest {
                     boolean trusted = "test-internal".equals(exchange.getRequestHeaders().getFirst("X-Internal-Service-Token"));
                     int status = trusted ? travelStatus.get() : 403;
                     if (status == 200) received.add(JsonMapper.builder().build().readTree(body));
-                    exchange.sendResponseHeaders(status, -1);
+                    byte[] answer = status == 200 ? travelAnswer.get().getBytes(StandardCharsets.UTF_8) : new byte[0];
+                    exchange.sendResponseHeaders(status, answer.length == 0 ? -1 : answer.length);
+                    if (answer.length > 0) exchange.getResponseBody().write(answer);
                 }
             });
             server.start();

@@ -196,6 +196,13 @@ engagement-service **pushes** its outbox to its one consumer, travel-service:
    Repeats and reordering are therefore harmless, including two relaying replicas.
 4. A reconciliation every 10 minutes compares the graph with engagement-service's current history and
    repairs and reports any drift (details in [recommendations](recommendations.md)).
+5. An event travel-service cannot apply (missing or malformed fields) is listed as `rejected` in its answer
+   with the reason, while the rest of the batch is applied. The relay **parks** the rejected event
+   (`parked_at`, `last_error`) instead of sending it forever, so it never blocks later events. A Neo4j outage
+   rejects nothing: the whole batch fails and is sent again. Admins list and resend parked events
+   (`/api/admin/events`, see [operations](operations.md#parked-events)).
+6. Each event carries the ID of the request that caused it (`traceId`), and travel-service logs its processing
+   under that ID.
 
 A push relay was chosen because there is a single consumer. If a second consumer needs these events
 (for example dashboard projections in another service), `published_at` must become per consumer,

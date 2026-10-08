@@ -63,3 +63,119 @@ An administrator repeats `DELETE /api/users/<user-id>` after a `202` or a depend
 The current implementation has not been exercised against deployed PostgreSQL, Neo4j, or credentialed provider sandboxes. Its synchronous `202` response is empty; the future operation resource and `Location` contract in the OpenAPI files remain to be implemented. Confirm cleanup and retry behavior in a deployed rehearsal before marking the user lifecycle or Phase 7 complete.
 
 Run `scripts/load/replica-smoke.sh` with `compose.scale.yml` to record status/error counts during a 40-request authenticated read sample. Stop one replica and repeat; Docker DNS routes new connections to survivors. Stop all instances of one service to verify a controlled dependency failure, then restore it with Compose. Application services use bounded HTTP client timeouts and idempotency keys for retried writes; this local demonstration does not claim multi-host or database high availability.
+
+## Resilience: timeouts, circuit breakers and retries
+
+Every wait is bounded, so one slow or stopped dependency cannot tie up the services that call it.
+
+| Where | Limit |
+| --- | --- |
+| Gateway to a service | connect 3 s, response 30 s, then `504` |
+| Service to service (internal HTTP) | connect 2–3 s, response 3–10 s (30 s for account deletion clean-up) |
+| travel-service to Neo4j | connect 5 s, wait for a pooled connection 10 s (`neo4j.connection-timeout`, `neo4j.acquisition-timeout`) |
+| search-service to Elasticsearch | 20 s per request |
+
+- **Circuit breakers** (`CircuitBreakers` in service-common, one per dependency host). After 5 calls in a row that
+  could not reach a dependency, calls to it fail at once for 15 s, then one trial call decides whether to close the
+  circuit. Only unreachable dependencies count; a dependency that answers (even `503`) answers quickly. Callers
+  see the same `503 DEPENDENCY_UNAVAILABLE` as before, just without the wait.
+- **Gateway retries.** A `GET` or `HEAD` whose connection fails is retried twice (50–200 ms apart). With several
+  replicas the retry usually reaches a healthy one. Writes are never retried by the gateway; clients retry them
+  with the same `Idempotency-Key`.
+- **Startup.** travel-service waits for Neo4j (up to 12 attempts, backing off to 30 s) instead of crashing when the
+  database is slow or still starting, which on a busy host could outlast the deployment's health wait.
+
+## Fallbacks when a dependency fails
+
+| Failure | What users see |
+| --- | --- |
+| Elasticsearch or search-service down | Search says it is limited and shows matching bookable travels from travel-service instead; changes are queued and indexed when it returns, and the 5-minute rebuild repairs anything missed |
+| Neo4j down | Travel browsing, booking and recommendations answer `503` within about 10 s; accounts, payments, feedback, reports and dashboards keep working |
+| Recommendations unavailable | The home page says so; search and browsing still work. Travelers without history get popular travels |
+| Payment provider down or slow | The payment stays `PROCESSING` or `REQUIRES_RECONCILIATION` and is shown as pending with "Check payment status"; reconciliation settles it later and the place stays reserved meanwhile |
+| payment-service down | Paying fails with `503`; the traveler dashboard shows no payment methods but loads |
+| engagement-service down | Subscriptions, feedback, reports and dashboards answer `503`; the outbox keeps undelivered events |
+
+## Request IDs
+
+The browser sends an `X-Request-ID` with every API call, the gateway keeps it (or creates one), and every service
+puts it in its log lines (`[requestId]` after the level) and forwards it on internal calls and provider calls.
+Events carry the ID of the request that caused them, and travel-service logs their processing under it. To
+follow a request, search all service logs for the ID shown in the browser's network panel or in an error body.
+Logs never contain headers, tokens, passwords or card data.
+
+## Parked events
+
+engagement-service delivers its outbox to travel-service ([events](events.md#recommendation-history-delivery-phase-7)).
+An event travel-service cannot apply (for example a missing field) is **parked** instead of blocking the events
+behind it.
+
+1. `GET /api/admin/events/status` shows how many events wait (`pending`), how many are parked and the oldest
+   pending time. A growing `pending` count means travel-service or Neo4j is down; a non-zero `parked` count needs
+   attention.
+2. `GET /api/admin/events/parked` lists parked events with the reason travel-service gave. The request ID in
+   travel-service's log line `Rejected event …` shows where the event came from.
+3. Fix the cause (usually a consumer bug, then deploy the fix).
+4. `POST /api/admin/events/parked/{eventId}/retry` puts the event back in the queue. Resending is safe: travel-service
+   ignores events it has already applied and older versions of a subscription. The recommendation reconciliation
+   (every 10 minutes) also repairs the history from engagement-service's records in the meantime.
+
+## Scaling and its limits
+
+`infra/compose/compose.scale.yml` runs two replicas of every application service. Services keep no state in
+memory that requests depend on, so any replica can serve any request. Search and travel scale independently:
+
+```sh
+docker compose -f infra/compose/compose.yml -f infra/compose/compose.scale.yml up -d \
+  --scale search-service=3 --scale travel-service=2
+```
+
+What replicas do **not** give:
+
+- **Databases are single instances.** PostgreSQL, Neo4j Community and Elasticsearch each run one node. Application
+  replicas share them, so they add request capacity, not database availability. Neo4j clustering needs the
+  Enterprise edition; Elasticsearch would need at least three nodes for a fault-tolerant cluster; PostgreSQL would
+  need streaming replication and failover. None of these are set up.
+- **Elasticsearch and Neo4j are rebuildable.** The search index is rebuilt from travel-service, and the recommendation
+  history from engagement-service, so losing either loses no business data. Neo4j also stores travels themselves,
+  so it must be backed up like PostgreSQL.
+- **Routing.** Compose health checks decide when a container starts serving, but Docker's DNS keeps a running
+  replica in rotation even if it becomes unhealthy. The gateway's read retries cover a replica that is stopped or
+  refuses connections; a replica that is up but answers errors stays routed until it is restarted. An orchestrator
+  using the enabled readiness probes (`/actuator/health/readiness`) would remove it.
+- **Scheduled jobs run on every replica.** The outbox relay, search rebuild and reconciliations are idempotent, so
+  running twice is harmless but does the work twice.
+
+## Load tests
+
+`scripts/load/load.mjs` (Node 22, no dependencies) runs repeatable scenarios against a deployment. Each run
+registers its own traveler accounts.
+
+```sh
+INSECURE_TLS=1 BASE_URL=https://localhost:8443 ADMIN_EMAIL=... ADMIN_PASSWORD=... \
+  node scripts/load/load.mjs --scenario all --concurrency 20 --duration 60
+```
+
+Scenarios: `search`, `autocomplete`, `dashboards`, `subscriptions` (reserve and cancel on the published travel with
+the most free places), `mixed` (a traveler journey) and `all`. Each operation reports requests, throughput, error
+rate and p50/p95/p99/max latency, and passes when p99 is under 5 s (`--budget-ms`) with under 1% errors. Results and
+the environment (commit, host, CPUs, memory) are saved in `load-results/`; copy the ones used as evidence into
+[docs/audit/evidence.md](audit/evidence.md).
+
+## Failure drills
+
+`scripts/load/drill.mjs` stops parts of a **test** deployment and checks the documented behaviour, then starts them
+again and checks recovery:
+
+```sh
+INSECURE_TLS=1 ADMIN_EMAIL=... ADMIN_PASSWORD=... DOCKER="docker exec lets-travel-ci-deploy-host-1 docker" \
+  node scripts/load/drill.mjs --only replica,search,neo4j,payments,restart
+```
+
+| Drill | Expected |
+| --- | --- |
+| `replica` | One of two travel-service replicas stopped: all reads still succeed (needs `compose.scale.yml`) |
+| `search` | Elasticsearch stopped: search `503`, browsing `200`; search returns after restart |
+| `neo4j` | Neo4j stopped: travels and recommendations `503` quickly, accounts and dashboards `200`; travel-service recovers without a restart |
+| `payments` | Payment simulator stopped: the rest of the app works, new payments stay pending; settled after restart |
+| `restart` | PostgreSQL, Neo4j and Elasticsearch restarted: user, travel and searchable counts match, no events pending or parked |

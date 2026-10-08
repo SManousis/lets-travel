@@ -1,5 +1,6 @@
 package com.travelplan.payments;
 
+import com.travelplan.common.CircuitBreakers;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -21,7 +22,7 @@ final class SandboxHttp {
 
     static HttpResponse<String> send(HttpRequest request) {
         try {
-            return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            return CircuitBreakers.send(CLIENT, request, HttpResponse.BodyHandlers.ofString());
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new ProviderAdapter.Unavailable("PROVIDER_TIMEOUT");

@@ -1,5 +1,6 @@
 package com.travelplan.engagement;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ final class TravelManagerClient {
                 .timeout(Duration.ofSeconds(5)).header("X-Internal-Service-Token", serviceToken)
                 .header("X-Request-ID", InternalCalls.requestId()).GET().build();
         try {
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) throw new ManagerPageService.DependencyUnavailable();
             JsonNode body = JSON.readTree(response.body());
             UUID responseManager = UUID.fromString(InternalCalls.required(body, "managerId"));

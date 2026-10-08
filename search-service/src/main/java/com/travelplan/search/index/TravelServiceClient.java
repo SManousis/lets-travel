@@ -1,5 +1,6 @@
 package com.travelplan.search.index;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 
 import java.io.IOException;
@@ -62,7 +63,7 @@ public class TravelServiceClient {
                 .header("X-Request-ID", UUID.randomUUID().toString())
                 .GET().build();
         try {
-            return client.send(request, HttpResponse.BodyHandlers.ofString());
+            return CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException ex) {
             throw new TravelServiceUnavailable("travel-service is unreachable");
         } catch (InterruptedException ex) {

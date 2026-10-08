@@ -1,5 +1,6 @@
 package com.travelplan.engagement;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 
 import java.io.IOException;
@@ -50,7 +51,7 @@ final class UserManagerClient {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(5))
                 .header("X-Internal-Service-Token", serviceToken).header("X-Request-ID", InternalCalls.requestId()).GET().build();
         try {
-            return client.send(request, HttpResponse.BodyHandlers.ofString());
+            return CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException ex) {
             throw new ManagerPageService.DependencyUnavailable();
         } catch (InterruptedException ex) {

@@ -1,5 +1,6 @@
 package com.travelplan.engagement;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 import java.io.IOException;
 import java.net.URI;
@@ -49,7 +50,7 @@ class PaymentInsightsClient {
         HttpRequest request = HttpRequest.newBuilder(URI.create(paymentsUrl + path)).timeout(Duration.ofSeconds(5))
                 .header("X-Internal-Service-Token", serviceToken).header("X-Request-ID", InternalCalls.requestId()).GET().build();
         try {
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) throw new Unavailable();
             return json.readTree(response.body());
         } catch (IOException failure) {

@@ -116,7 +116,22 @@ class RecommendationServiceTest {
         Event confirmed = subscriptionEvent(subscription, culture, florence, "CONFIRMED", 5);
         var result = service.apply(List.of(confirmed, confirmed, subscriptionEvent(subscription, culture, florence, "CONFIRMED", 4),
                 new Event(UUID.randomUUID(), "ReportFiled", UUID.randomUUID(), 1, Map.of())));
-        assertThat(result).isEqualTo(new RecommendationService.EventResult(1, 1, 1, 1));
+        assertThat(result).isEqualTo(new RecommendationService.EventResult(1, 1, 1, 1, List.of()));
+    }
+
+    @Test void anUnprocessableEventIsRejectedWithoutBlockingTheRestOfTheBatch() {
+        UUID broken = UUID.randomUUID();
+        UUID subscription = UUID.randomUUID();
+        UUID traveler = UUID.randomUUID();
+        var result = service.apply(List.of(
+                new Event(broken, "SubscriptionConfirmed", UUID.randomUUID(), 1, Map.of("travelId", florence.toString())),
+                subscriptionEvent(subscription, traveler, florence, "CONFIRMED", 1)));
+        assertThat(result.applied()).isEqualTo(1);
+        assertThat(result.rejected()).singleElement().satisfies(rejected -> {
+            assertThat(rejected.eventId()).isEqualTo(broken);
+            assertThat(rejected.reason()).startsWith("IllegalArgumentException");
+        });
+        assertThat(service.recommend(traveler, 5).strategy()).isEqualTo(Strategy.PERSONALIZED);
     }
 
     @Test void deletedTravelersAreForgotten() {

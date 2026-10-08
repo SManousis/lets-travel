@@ -1,5 +1,6 @@
 package com.travelplan.payments;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 
 import java.io.IOException;
@@ -87,7 +88,7 @@ class SubscriptionClient {
 
     private HttpResponse<String> send(HttpRequest request) {
         try {
-            return client.send(request, HttpResponse.BodyHandlers.ofString());
+            return CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException ex) {
             throw new SubscriptionPaymentService.DependencyUnavailable();
         } catch (InterruptedException ex) {

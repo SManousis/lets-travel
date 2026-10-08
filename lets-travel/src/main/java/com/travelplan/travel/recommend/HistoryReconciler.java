@@ -1,5 +1,6 @@
 package com.travelplan.travel.recommend;
 
+import com.travelplan.common.CircuitBreakers;
 import com.travelplan.common.ServiceUrls;
 import com.travelplan.travel.recommend.RecommendationGraph.HistoryRow;
 import java.io.IOException;
@@ -68,7 +69,7 @@ public class HistoryReconciler {
         HttpRequest request = HttpRequest.newBuilder(URI.create(engagementUrl + path)).timeout(Duration.ofSeconds(10))
                 .header("X-Internal-Service-Token", serviceToken).GET().build();
         try {
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = CircuitBreakers.send(client, request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) throw new IllegalStateException("engagement-service answered " + response.statusCode());
             return json.readTree(response.body());
         } catch (IOException failure) {
