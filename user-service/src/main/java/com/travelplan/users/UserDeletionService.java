@@ -1,5 +1,7 @@
 package com.travelplan.users;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -35,7 +37,10 @@ final class UserDeletionService {
                     store.advanceDeletion(id, "REVOKED", "PAYMENTS_CLEAN");
                 }
                 case "PAYMENTS_CLEAN" -> {
-                    clients.cleanupTravelers(store.travelerIds(id));
+                    // Seat reservations and travel history are keyed by the account ID, profiles by their own IDs.
+                    List<UUID> owned = new ArrayList<>(store.travelerIds(id));
+                    owned.add(id);
+                    clients.cleanupTravelers(owned);
                     store.advanceDeletion(id, "PAYMENTS_CLEAN", "TRAVEL_CLEAN");
                 }
                 case "TRAVEL_CLEAN" -> {

@@ -231,24 +231,11 @@ feed; [search](search.md) explains why and how drift is repaired.
 
 ## Recommendation scoring
 
-Recommendations come from the caller's own history in the Neo4j graph and use four
-travel fields: destination, activity category, transport mode and accommodation
-category.
-
-1. **History weight.** Each of the caller's confirmed or completed travels gets a
-   weight from their feedback: `w = 1 + 0.5 × (rating − 3)`, so a rating of 5
-   gives 2.0, 3 gives 1.0 and 1 gives 0. A travel without feedback weighs 1.0.
-2. **Preferences.** For every value of each field (for example destination "Rome"),
-   the preference is the sum of the weights of history travels that have it.
-   Preferences are divided by the largest preference in the same field, giving
-   0 to 1.
-3. **Candidate score.** For each eligible travel:
-   `0.35 × destination + 0.25 × activity + 0.20 × transport + 0.20 × accommodation`,
-   where each term is the highest normalized preference among the candidate's
-   values for that field. Ties break on average rating, then start date, then ID.
-4. **Eligibility.** Only published travels that start in the future, have places
-   left, and that the caller is not subscribed to.
-5. **Reasons.** The response lists the field values that contributed, strongest
-   first, at most three.
-6. **Cold start.** A caller with no weighted history receives `POPULAR` results:
-   most confirmed subscriptions in the last 90 days, then rating.
+Recommendations come from the caller's own history in the Neo4j graph and use four travel fields:
+destination, activity category, transport mode and accommodation category. Each past trip weighs
+`1 + 0.5 x (rating - 3)`; preferences per field value are normalized to 0..1; a candidate scores
+`0.35 x destination + 0.25 x activity + 0.20 x transport + 0.20 x accommodation`. Ties break on
+average rating, start date and travel ID, and at most two travels per first destination are listed
+while other matches remain. Travelers without usable history get the most booked travels, then the
+best rated. The full rules, the graph model, how the history is kept in step with engagement-service
+and the failure behaviour are in [recommendations](recommendations.md).

@@ -43,8 +43,8 @@ class AuthorizationMatrixTest {
             endpoint("GET", "/api/admin/reports/{reportId}", Access.ADMIN),
             endpoint("PATCH", "/api/admin/reports/{reportId}", Access.ADMIN),
             endpoint("GET", "/internal/subscriptions/{subscriptionId}", Access.INTERNAL),
-            endpoint("POST", "/internal/subscriptions/{subscriptionId}/payment-outcome", Access.INTERNAL)
-    );
+            endpoint("POST", "/internal/subscriptions/{subscriptionId}/payment-outcome", Access.INTERNAL),
+            endpoint("GET", "/internal/recommendation-history", Access.INTERNAL));
 
     @Autowired ApplicationContext context;
     @Autowired AccessTokenCodec codec;

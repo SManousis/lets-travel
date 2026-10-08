@@ -477,6 +477,8 @@ components:
         checkOut:
           type: string
           format: date
+        category:
+          "$ref": "#/components/schemas/AccommodationCategory"
       required:
       - id
       - name
@@ -499,6 +501,8 @@ components:
         checkOut:
           type: string
           format: date
+        category:
+          "$ref": "#/components/schemas/AccommodationCategory"
       required:
       - name
       - address
@@ -520,6 +524,8 @@ components:
         date:
           type: string
           format: date
+        category:
+          "$ref": "#/components/schemas/ActivityCategory"
       required:
       - id
       - name
@@ -537,9 +543,36 @@ components:
         date:
           type: string
           format: date
+        category:
+          "$ref": "#/components/schemas/ActivityCategory"
       required:
       - name
       - date
+    ActivityCategory:
+      type: string
+      nullable: true
+      description: Optional kind of activity; personalized recommendations match on it.
+      enum:
+      - CULTURE
+      - NATURE
+      - ADVENTURE
+      - BEACH
+      - FOOD
+      - NIGHTLIFE
+      - WELLNESS
+      - SPORT
+      -
+    AccommodationCategory:
+      type: string
+      nullable: true
+      description: Optional kind of stay; personalized recommendations match on it.
+      enum:
+      - HOTEL
+      - HOSTEL
+      - APARTMENT
+      - RESORT
+      - CAMPING
+      -
     Destination:
       type: object
       additionalProperties: false

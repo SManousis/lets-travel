@@ -20,10 +20,12 @@ paths:
     get:
       operationId: listRecommendations
       summary: Recommend travels for the authenticated user
-      description: Returns only published, future travels with remaining places that
-        the caller is not already subscribed to. Callers without history (cold
-        start) receive `POPULAR` results ranked by recent confirmed subscriptions
-        and rating. Ties break on start date, then travel ID, so results are stable.
+      description: Returns only published travels that start after today, have places
+        left, are not managed by the caller, and that the caller has not booked or
+        taken. Scoring, variety (at most two travels per first destination while other
+        matches remain) and tie-breaking are described in docs/recommendations.md.
+        Callers without usable history (cold start, or only 1-star trips) receive
+        `POPULAR` results ranked by places taken, then average rating, then start date.
       parameters:
       - name: limit
         in: query

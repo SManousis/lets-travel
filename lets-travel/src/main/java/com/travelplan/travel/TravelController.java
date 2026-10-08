@@ -202,12 +202,12 @@ public class TravelController {
 
     private static List<TravelDomain.Activity> activities(List<ActivityWrite> values) {
         return values.stream().map(activity -> new TravelDomain.Activity(UUID.randomUUID(), activity.name(),
-                activity.description(), activity.date())).toList();
+                activity.description(), activity.date(), activity.category())).toList();
     }
 
     private static List<TravelDomain.Accommodation> accommodations(List<AccommodationWrite> values) {
         return values.stream().map(stay -> new TravelDomain.Accommodation(UUID.randomUUID(), stay.name(),
-                stay.address(), stay.checkIn(), stay.checkOut())).toList();
+                stay.address(), stay.checkIn(), stay.checkOut(), stay.category())).toList();
     }
 
     private static List<TravelDomain.Transport> transports(List<TransportWrite> values) {
@@ -235,9 +235,10 @@ public class TravelController {
                        @Size(max = 64) String timeZone) {}
     record StopWrite(@NotNull UUID destinationId, @Min(0) int position, LocalDate arrivalDate,
                      LocalDate departureDate) {}
-    record ActivityWrite(@NotBlank String name, String description, @NotNull LocalDate date) {}
+    record ActivityWrite(@NotBlank String name, String description, @NotNull LocalDate date,
+                         TravelDomain.ActivityCategory category) {}
     record AccommodationWrite(@NotBlank String name, @NotBlank String address, @NotNull LocalDate checkIn,
-                              @NotNull LocalDate checkOut) {}
+                              @NotNull LocalDate checkOut, TravelDomain.AccommodationCategory category) {}
     record TransportWrite(@NotBlank String mode, @NotBlank String departure, @NotBlank String arrival,
                           @NotNull LocalDate date) {}
 }

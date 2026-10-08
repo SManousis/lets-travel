@@ -9,6 +9,7 @@ import { SubscriberManager } from "./features/subscriptions/SubscriberManager";
 import { FeedbackPanel } from "./features/feedback/FeedbackPanel";
 import { FeedbackOverview } from "./features/feedback/FeedbackOverview";
 import { MyReports } from "./features/reports/MyReports";
+import { Recommendations } from "./features/recommendations/Recommendations";
 import { ReportQueue } from "./features/reports/ReportQueue";
 
 type Section = "users" | "travels" | "subscriptions" | "feedback" | "reports" | "payments";
@@ -154,6 +155,7 @@ function App() {
         <button type="button" onClick={() => void signOut()} disabled={busy}>Sign out</button></div>
     </header>
     {me.role !== "ADMIN" ? <main id="main-content"><AccountHome me={me} />
+      <Recommendations context={context} />
       {me.role === "TRAVEL_MANAGER" && <SubscriberManager context={context} />}
       {me.role === "TRAVEL_MANAGER" && <FeedbackOverview context={context} />}
       <TravelerTrips context={context} />

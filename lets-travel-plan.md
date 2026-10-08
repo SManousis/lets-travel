@@ -250,17 +250,17 @@ Evidence: `docs/audit/phase-6-verification.md`. Design: `docs/feedback-and-repor
 
 **Main files:** `travel-service/src/main/`, Neo4j migrations/constraints, engagement event consumers, recommendation API contract and tests.
 
-- [ ] Extend the graph with traveler preference/participation relationships and the selected travel fields: destination, activity category, transport mode, and accommodation category.
-- [ ] Project confirmed/completed participation and eligible feedback into Neo4j idempotently without storing unnecessary personal data.
-- [ ] Document a deterministic scoring formula using at least three travel fields plus feedback weight and prior participation.
-- [ ] Exclude unpublished, cancelled, full, already completed, and otherwise ineligible travels from recommendations.
-- [ ] Avoid recommending the same result repeatedly when suitable alternatives exist and define stable tie-breaking.
-- [ ] Return concise recommendation reasons such as matched destination and activity preferences without exposing other users' data.
-- [ ] Provide a cold-start fallback using popular, well-rated upcoming travels when the traveler lacks sufficient history.
-- [ ] Add replay/rebuild and drift-detection procedures for recommendation relationships.
-- [ ] Test two users with deliberately different participation and feedback histories and prove their ranked results differ appropriately.
-- [ ] Test cold start, negative feedback, deleted feedback, deleted user, full travel, and Neo4j outage behavior.
-- [ ] **Completion gate:** The two-account audit scenario yields explainable, distinct, reproducible recommendations and the fallback remains useful when history or Neo4j is unavailable.
+- [x] Extend the graph with traveler preference/participation relationships and the selected travel fields: destination, activity category, transport mode, and accommodation category.
+- [x] Project confirmed/completed participation and eligible feedback into Neo4j idempotently without storing unnecessary personal data.
+- [x] Document a deterministic scoring formula using at least three travel fields plus feedback weight and prior participation.
+- [x] Exclude unpublished, cancelled, full, already completed, and otherwise ineligible travels from recommendations.
+- [x] Avoid recommending the same result repeatedly when suitable alternatives exist and define stable tie-breaking.
+- [x] Return concise recommendation reasons such as matched destination and activity preferences without exposing other users' data.
+- [x] Provide a cold-start fallback using popular, well-rated upcoming travels when the traveler lacks sufficient history.
+- [x] Add replay/rebuild and drift-detection procedures for recommendation relationships.
+- [x] Test two users with deliberately different participation and feedback histories and prove their ranked results differ appropriately.
+- [x] Test cold start, negative feedback, deleted feedback, deleted user, full travel, and Neo4j outage behavior. (Feedback cannot be deleted through the API; a rating that disappears from engagement-service is removed by the reconciliation. The outage is tested at service level; see [recommendations](docs/recommendations.md#7-evidence).)
+- [ ] **Completion gate:** (Automated two-account evidence in `RecommendationServiceTest`; still open: a live run on the full stack.) The two-account audit scenario yields explainable, distinct, reproducible recommendations and the fallback remains useful when history or Neo4j is unavailable.
 
 ## Phase 8 — Analytics and role-specific dashboard APIs
 

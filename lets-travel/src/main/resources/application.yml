@@ -16,6 +16,12 @@ services:
   # search-service is told about every travel change; empty disables the notifications.
   search:
     url: ${SEARCH_SERVICE_URL:}
+  # Recommendation history is reconciled from engagement-service; empty disables the schedule.
+  engagement:
+    url: ${ENGAGEMENT_SERVICE_URL:}
+recommendations:
+  reconcile-initial-delay: ${RECOMMENDATIONS_RECONCILE_INITIAL_DELAY:PT1M}
+  reconcile-interval: ${RECOMMENDATIONS_RECONCILE_INTERVAL:PT10M}
 security:
   token-secret: ${AUTH_TOKEN_SECRET:replace-with-at-least-32-random-characters}
   internal-service-token: ${AUTH_INTERNAL_SERVICE_TOKEN:change-me-internal}
