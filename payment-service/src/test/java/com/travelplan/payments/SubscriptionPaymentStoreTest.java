@@ -2,6 +2,7 @@ package com.travelplan.payments;
 
 import com.travelplan.payments.SubscriptionPayment.State;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,7 +85,8 @@ class SubscriptionPaymentStoreTest {
     }
 
     private static SubscriptionPayment payment(UUID user, UUID subscription, String key) {
-        Instant now = Instant.now();
+        // The database keeps microseconds; Linux clocks give nanoseconds, so compare at the stored precision.
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         return new SubscriptionPayment(UUID.randomUUID(), subscription, user, 45050, "EUR", "TEST", null, "APPROVE",
                 "Test card", key, "hash", State.PROCESSING, null, null, false, null, null, 1, now, now);
     }
