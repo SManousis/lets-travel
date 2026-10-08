@@ -4,6 +4,7 @@
   become: true
   vars:
     app_dir: /opt/lets-travel
+    compose_files: [compose.yml, compose.release.yml, compose.secure.yml]
     required_tls_files:
       - dev-ca.crt
       - gateway.crt
@@ -161,6 +162,30 @@
         dest: "{{ app_dir }}/vault/config/"
         mode: preserve
 
+    - name: Read the release that is running now
+      ansible.builtin.slurp:
+        src: "{{ app_dir }}/current-release"
+      register: running_release
+      failed_when: false
+
+    # Before this playbook recorded releases, the running tag was only in the rendered environment file.
+    - name: Read the environment of the running release
+      ansible.builtin.slurp:
+        src: "{{ app_dir }}/.env"
+      register: running_environment
+      failed_when: false
+      no_log: true
+
+    - name: Remember the running release for rollback
+      ansible.builtin.set_fact:
+        previous_release_tag: >-
+          {{ (running_release.content | b64decode | trim) if running_release.content is defined
+             else ((running_environment.content | b64decode | regex_search('(?m)^RELEASE_TAG=(\S+)$', '\1') | first)
+                   if running_environment.content is defined
+                      and (running_environment.content | b64decode) is search('(?m)^RELEASE_TAG=\S+$')
+                   else '') }}
+        deploy_tag: "{{ release_tag }}"
+
     - name: Render private release environment
       ansible.builtin.template:
         src: release.env.j2
@@ -178,10 +203,7 @@
     - name: Start PostgreSQL before the application services
       community.docker.docker_compose_v2:
         project_src: "{{ app_dir }}/compose"
-        files:
-          - compose.yml
-          - compose.release.yml
-          - compose.secure.yml
+        files: "{{ compose_files }}"
         env_files:
           - "{{ app_dir }}/.env"
         services:
@@ -204,43 +226,45 @@
       register: database_bootstrap
       changed_when: "'CREATE DATABASE' in database_bootstrap.stdout or 'CREATE ROLE' in database_bootstrap.stdout"
 
-    - name: Pull and reconcile the exact published release
-      community.docker.docker_compose_v2:
-        # Relative bind mounts in the manifests (../tls/certs, ../proxy, ...) resolve
-        # against the project directory, so it must be the compose directory itself.
-        project_src: "{{ app_dir }}/compose"
-        files:
-          - compose.yml
-          - compose.release.yml
-          - compose.secure.yml
-        env_files:
-          - "{{ app_dir }}/.env"
-        state: present
-        pull: always
-        build: never
-        wait: true
-        # A cold start of every container on a small host can take several minutes; services
-        # that lose a startup race restart on their own (restart: unless-stopped).
-        wait_timeout: 600
+    # Data volumes are never touched by a rollout or a rollback. Database migrations only add (expand/contract,
+    # docs/ci.md), so the previous release still runs on a schema the new release has migrated.
+    - name: Roll out the release, or put the previous one back
+      block:
+        - name: Roll out {{ release_tag }}
+          ansible.builtin.include_tasks: rollout.yml
 
-    - name: Wait for HTTPS dashboard readiness
-      ansible.builtin.uri:
-        url: "https://{{ deployment_health_hostname | default('localhost') }}:{{ deployment_health_port | default(8443) }}/health"
-        ca_path: "{{ deployment_ca_path | default(app_dir ~ '/tls/certs/dev-ca.crt') }}"
-        validate_certs: true
-        status_code: 200
-      register: dashboard_health
-      retries: 18
-      delay: 5
-      until: dashboard_health.status == 200
+        - name: Record the running release
+          ansible.builtin.copy:
+            content: "{{ release_tag }}\n"
+            dest: "{{ app_dir }}/current-release"
+            mode: '0644'
 
-    - name: Confirm the HTTPS API reaches the gateway
-      ansible.builtin.uri:
-        url: "https://{{ deployment_health_hostname | default('localhost') }}:{{ deployment_health_port | default(8443) }}/api/users"
-        ca_path: "{{ deployment_ca_path | default(app_dir ~ '/tls/certs/dev-ca.crt') }}"
-        validate_certs: true
-        status_code: 401
-      register: gateway_health
-      retries: 18
-      delay: 5
-      until: gateway_health.status == 401
+        - name: Append to the release history
+          ansible.builtin.lineinfile:
+            path: "{{ app_dir }}/release-history"
+            line: "{{ now(utc=true).isoformat() }} {{ release_tag }} deployed"
+            create: true
+            mode: '0644'
+      rescue:
+        - name: Choose the previous release for rollback
+          ansible.builtin.set_fact:
+            deploy_tag: "{{ previous_release_tag }}"
+          when: previous_release_tag | length > 0 and previous_release_tag != release_tag
+
+        - name: Roll back to {{ previous_release_tag }}
+          ansible.builtin.include_tasks: rollout.yml
+          when: deploy_tag != release_tag
+
+        - name: Append the rollback to the release history
+          ansible.builtin.lineinfile:
+            path: "{{ app_dir }}/release-history"
+            line: "{{ now(utc=true).isoformat() }} {{ release_tag }} failed; {{ deploy_tag }} restored"
+            create: true
+            mode: '0644'
+          when: deploy_tag != release_tag
+
+        - name: Fail the deployment
+          ansible.builtin.fail:
+            msg: >-
+              Release {{ release_tag }} failed its rollout or health checks.
+              {{ ('Rolled back to ' ~ deploy_tag ~ '.') if deploy_tag != release_tag else 'There was no previous release to restore.' }}

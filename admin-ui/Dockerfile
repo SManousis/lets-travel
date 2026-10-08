@@ -9,7 +9,10 @@ COPY index.html tsconfig.json vite.config.ts ./
 COPY src ./src
 RUN npm run build
 
-FROM nginx:1.28.0-alpine AS runtime
+FROM nginx:1.30.5-alpine AS runtime
+
+# Security fixes released after the base image was published (the CI image scan blocks fixable HIGH/CRITICAL).
+RUN apk upgrade --no-cache
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY --from=builder /app/dist /usr/share/nginx/html

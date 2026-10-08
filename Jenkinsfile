@@ -6,6 +6,7 @@ pipeline {
     stage('Toolchain') {
       steps {
         sh 'java -version && node --version && npm --version && sonar-scanner --version'
+        sh 'gitleaks version && osv-scanner --version && trivy --version'
       }
     }
     stage('Backend verification') {
@@ -32,10 +33,27 @@ pipeline {
         }
       }
     }
+    // Blocking: any committed secret or any known vulnerability in a Java or npm dependency fails the build.
+    // Reviewed false positives go in .gitleaksignore; accepted vulnerabilities in osv-scanner.toml (docs/ci.md).
+    stage('Security scans') {
+      steps {
+        sh '''
+          set -eu
+          mkdir -p reports/security/sbom
+          gitleaks git . --redact --no-banner --report-format json --report-path reports/security/gitleaks.json
+          ./mvnw -B -ntp -q org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom \
+            -DoutputFormat=json -DoutputName=bom -DincludeTestScope=false
+          cp target/bom.json reports/security/sbom/backend.cdx.json
+          osv-scanner scan source --no-ignore --config osv-scanner.toml --format table --output reports/security/osv.txt \
+            -L package-lock.json -L admin-ui/package-lock.json reports/security/sbom \
+            || { cat reports/security/osv.txt; exit 1; }
+        '''
+      }
+    }
     stage('Deployment playbook checks') {
       steps {
         sh 'ansible-playbook --syntax-check -i infra/ansible/inventory.ini infra/ansible/site.yml'
-        sh 'ansible-lint infra/ansible/site.yml infra/ansible/prepare.yml infra/ansible/deploy.yml'
+        sh 'ansible-lint infra/ansible/site.yml infra/ansible/prepare.yml infra/ansible/deploy.yml infra/ansible/rollout.yml'
       }
     }
     stage('SonarQube analysis') {
@@ -77,6 +95,19 @@ pipeline {
                 --label "org.opencontainers.image.revision=$RELEASE_TAG" \
                 -t "$IMAGE_PREFIX/$service:ci-$BUILD_NUMBER-$RELEASE_TAG" "$context"
             done
+            # Image policy: no HIGH or CRITICAL vulnerability that has a fix may be published. Candidates are pushed
+            # under their ci- tag and scanned from the registry (exporting from the remote daemon is far slower);
+            # only images that pass get the release tag below.
+            mkdir -p reports/security/images
+            export TRIVY_USERNAME="$REGISTRY_USER" TRIVY_PASSWORD="$REGISTRY_PASSWORD"
+            for service in auth-service user-service travel-service payment-service engagement-service search-service api-gateway admin-ui; do
+              docker push -q "$IMAGE_PREFIX/$service:ci-$BUILD_NUMBER-$RELEASE_TAG"
+              trivy image --quiet --image-src remote --insecure --timeout 10m \
+                --cache-dir /home/jenkins/agent/trivy-cache --scanners vuln --ignore-unfixed \
+                --severity HIGH,CRITICAL --exit-code 1 --format table \
+                --output "reports/security/images/$service.txt" "$IMAGE_PREFIX/$service:ci-$BUILD_NUMBER-$RELEASE_TAG" \
+                || { cat "reports/security/images/$service.txt"; exit 1; }
+            done
             for service in auth-service user-service travel-service payment-service engagement-service search-service api-gateway admin-ui; do
               target="$IMAGE_PREFIX/$service:$RELEASE_TAG"
               candidate="$IMAGE_PREFIX/$service:ci-$BUILD_NUMBER-$RELEASE_TAG"
@@ -94,6 +125,9 @@ pipeline {
               docker tag "$candidate" "$target"
               docker push "$target"
             done
+            # Artifact-to-commit manifest: the exact image digests this commit was released as.
+            node scripts/ci/release-manifest.mjs > release-manifest.json
+            cat release-manifest.json
           '''
         }
       }
@@ -125,11 +159,29 @@ pipeline {
         }
       }
     }
+    // Performance smoke against the deployed release: search with two users for 15 seconds, p99 under 5 s.
+    stage('Post-deploy smoke') {
+      when { expression { env.BRANCH_NAME == 'main' || (!env.BRANCH_NAME?.trim() && env.GIT_BRANCH in ['main', 'origin/main']) } }
+      steps {
+        withCredentials([file(credentialsId: 'lets-travel-release-env', variable: 'RELEASE_ENV_FILE')]) {
+          sh '''
+            set -eu
+            set -a
+            . "$RELEASE_ENV_FILE"
+            set +a
+            export BASE_URL="${DEPLOY_BASE_URL:-https://deploy-host:8443}" INSECURE_TLS=1 LOAD_ACCOUNTS=admin
+            export ADMIN_EMAIL="$ADMIN_USERNAME"
+            node scripts/load/load.mjs --scenario search --concurrency 2 --duration 15 --out reports/smoke
+          '''
+        }
+      }
+    }
   }
   post {
     always {
       junit testResults: '**/target/surefire-reports/*.xml,admin-ui/reports/vitest-junit.xml', allowEmptyResults: true
-      archiveArtifacts artifacts: '**/target/*.jar,admin-ui/dist/**', allowEmptyArchive: true
+      archiveArtifacts artifacts: '**/target/*.jar,admin-ui/dist/**,release-manifest.json,reports/**,**/target/site/jacoco/**,admin-ui/coverage/**',
+        allowEmptyArchive: true
     }
   }
 }

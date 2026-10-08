@@ -112,7 +112,7 @@ Run on 2026-10-08 against commit `9570f33` plus this change:
 | npm dependencies | `npm audit` | 0 | — |
 | Java dependencies | CycloneDX SBOM + osv-scanner 2.2 | 3 critical (Tomcat 11.0.24), 10 high and 4 medium (Jackson 3.1.5 and 2.21.5) | Fixed: Tomcat 11.0.25, Jackson 3.1.7 and 2.21.7 pinned in the root `pom.xml`; rescan shows 0. Remove the pins when Spring Boot ships these versions. |
 | Static analysis | SonarQube (CI quality gate) | per pipeline run | New issues block the merge. |
-| Container images | — | not yet run | Planned with the CI security stage (Phase 12): Trivy on every built image, failing on fixable high/critical findings. |
+| Container images | Trivy 0.67 (CI gate since Phase 12) | Release `9570f33`: `libexpat` HIGH in all Java images; about 45 HIGH/CRITICAL in the UI image (nginx 1.28 on Alpine 3.21) | Fixed: every image runs `apk upgrade` at build time and the UI and TLS proxy moved to nginx 1.30.5 (Alpine 3.24); rescan of the UI image shows 0. The proxy uses the stock nginx image, which is not built by CI and still lists 3 HIGH fixed upstream; pin the next patched tag when it appears. |
 
 Reproduce:
 
