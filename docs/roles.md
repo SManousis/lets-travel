@@ -34,6 +34,12 @@ Rules that apply to every role:
 - Records the caller may not see answer **404**, not 403, so their existence is not revealed. A role below an
   endpoint's minimum gets **403**; no or an expired token gets **401**.
 - A manager cannot change a travel's owner, edit another manager's travel or see its subscribers.
+- Once travelers have booked a travel, its dates, price, currency and time zone are fixed (`409
+  TRAVEL_HAS_SUBSCRIBERS`), because each booking holds those terms and the cancellation deadline depends on them;
+  places can only go up to or stay above the number booked. The description and itinerary details can still be
+  improved, and travelers always see the current version, so nothing they paid for changes without them. The
+  editor locks the fixed fields and explains why. To change the terms, the manager removes subscribers (full
+  refund) or creates a new travel.
 - Cancelling within three days of the start is refused for travelers (`CANCELLATION_CUTOFF_PASSED`); a manager or
   admin removing a subscriber is not bound by the cutoff and the traveler is refunded in full.
 - Feedback is only accepted after the trip ended and once per trip; reports are limited to 10 a day per person.

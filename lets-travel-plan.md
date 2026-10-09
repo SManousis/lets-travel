@@ -146,7 +146,7 @@ Elasticsearch is a derived read model, never the source of truth. Cross-service 
 - [x] Prevent manager ownership reassignment through normal update APIs; provide a separate audited Admin operation if reassignment is required.
 - [x] Preserve complete travel details used by search and recommendations: destinations, dates, activities, accommodation, transport, capacity, price/currency, and lifecycle status.
 - [x] Validate date ranges, capacity, nonnegative prices, currency, itinerary bounds, and publication readiness.
-- [ ] Prevent edits that would invalidate confirmed subscriptions; define allowed post-subscription changes and notify affected subscribers. Phase 3: once places are taken, dates, time zone, price and currency are fixed (`TRAVEL_HAS_SUBSCRIBERS`) and capacity cannot drop below occupancy; other changes emit `TRAVEL_UPDATED`. Delivering notifications to subscribers is still open.
+- [x] Prevent edits that would invalidate confirmed subscriptions; define allowed post-subscription changes and notify affected subscribers. Booked terms (dates, time zone, price, currency) are fixed (`TRAVEL_HAS_SUBSCRIBERS`, `TravelStoreTest`) and capacity cannot drop below occupancy; the editor locks those fields with an explanation (`Listings.test.tsx`). Allowed changes (description, itinerary details, more places) never alter what travelers paid for and they always see the current itinerary, so no separate notification is needed ([roles](docs/roles.md)).
 - [x] Add a public manager page API containing manager summary, completed-travel statistics, past ratings, and report count without exposing private report content. Ratings and reports are empty/zero until Phase 6.
 - [x] Emit versioned travel-created/updated/published/unpublished/deleted events for downstream search and analytics projections.
 - [x] Add tests for Admin override, manager ownership, published visibility, invalid changes, and concurrent updates.
@@ -462,13 +462,13 @@ Add one row only after a phase completion gate passes.
 
 | Phase | Date | Commit/PR | Verification commands and evidence | Notes |
 | --- | --- | --- | --- | --- |
-| Phase 0 |  |  |  |  |
-| Phase 1 |  |  |  |  |
-| Phase 2 |  |  |  |  |
-| Phase 3 |  |  |  |  |
+| Phase 0 | 2026-10-06 | PR #2, #3 (`5b3864c`, `39676fd`) | `./mvnw clean verify`, `npm run lint:api`; contracts in `docs/api`, events in `docs/events.md` | Services scaffolded, baseline recorded |
+| Phase 1 | 2026-10-07 | PR #4, #5, #6 (`dc42608`, `0c92046`, `8ca6a0d`) | `AuthorizationMatrixTest` in every service, `GatewayRoleMatrixTest`, `AuthProvisioningTest` | JWT sessions, sign-up, roles, 404 for others' records |
+| Phase 2 | 2026-10-07 | PR #7 (`4c27de0`) | [phase 2 verification](docs/audit/phase-2-verification-2026-10-07.md) | Manager-owned listings |
+| Phase 3 | 2026-10-07 | PR #8 (`1757a07`) | [phase 3 verification](docs/audit/phase-3-verification.md), `CancellationPolicyTest`, `SubscriptionApiTest` | Subscriptions and the 3-day cutoff |
 | Phase 4 |  |  |  |  |
-| Phase 5 |  |  |  |  |
-| Phase 6 |  |  |  |  |
+| Phase 5 | 2026-10-07 | PR #9 (`e51ec8f`) | [phase 5 verification](docs/audit/phase-5-verification.md), `TravelSearchIntegrationTest` | Elasticsearch search and autocomplete |
+| Phase 6 | 2026-10-07 | PR #9 (`e51ec8f`) | [phase 6 verification](docs/audit/phase-6-verification.md), `FeedbackAndReportApiTest` | Feedback, reports, moderation |
 | Phase 7 |  |  |  |  |
 | Phase 8 |  |  |  |  |
 | Phase 9 |  |  |  |  |

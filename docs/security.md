@@ -83,6 +83,12 @@ internal network must stay private (no published ports except the proxy).
   management endpoints listen on a separate private port.
 - Rotation: change the value in the secret store and restart the service. Rotating `AUTH_TOKEN_SECRET` signs
   everyone out (their tokens no longer verify), which is the intended effect after a leak.
+- Pipeline logs: Jenkins traces every shell command, so any step that loads a secrets file must turn tracing off
+  first (`set +x`, as the deploy and smoke stages do). Jenkins masks credential *paths*, not values read from them.
+
+**Incident 2026-10-08:** the deploy stage loaded the release environment with tracing on, so `main` builds #2–#16
+of the local CI printed the release secrets in their console logs (readable only by the local Jenkins users). The
+stages now turn tracing off; the affected logs are deleted and every value in the release environment is rotated.
 
 ## 6. Audit records
 

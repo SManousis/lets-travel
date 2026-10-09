@@ -66,9 +66,14 @@ public class UserStore {
      */
     public UserDomain.User create(String email, String first, String last, Role role, String password) {
         if (users.values().stream().anyMatch(u -> u.email().equalsIgnoreCase(email))) throw new Conflict("EMAIL_EXISTS");
-        UserDomain.User user = new UserDomain.User(UUID.randomUUID(), email.toLowerCase(Locale.ROOT), first, last, role, UserDomain.Status.ACTIVE, Instant.now());
+        UserDomain.User user = new UserDomain.User(UUID.randomUUID(), email.toLowerCase(Locale.ROOT), first, last, role,
+                UserDomain.Status.ACTIVE, Instant.now());
         String initialPassword = password != null ? password : randomPassword();
-        try { provisioning.provision(user.id(), user.email(), initialPassword, user.role().name()); } catch (RuntimeException ex) { throw new Conflict("AUTH_PROVISIONING_FAILED"); }
+        try {
+            provisioning.provision(user.id(), user.email(), initialPassword, user.role().name());
+        } catch (RuntimeException ex) {
+            throw new Conflict("AUTH_PROVISIONING_FAILED");
+        }
         if (jdbc != null) {
             try {
                 jdbc.update("insert into users(id,email,first_name,last_name,role,status,created_at) values (?,?,?,?,?,?,?)",
@@ -107,7 +112,9 @@ public class UserStore {
             users.put(id, found.getFirst());
             return found.getFirst();
         }
-        UserDomain.User u = users.get(id); if (u == null) throw new NotFound(); return u;
+        UserDomain.User user = users.get(id);
+        if (user == null) throw new NotFound();
+        return user;
     }
 
     public boolean activeForPayment(UUID id) {
@@ -199,25 +206,49 @@ public class UserStore {
                                           Role role, UserDomain.Status status) {
         UserDomain.User old = get(id);
         if (deletionStage(id) != null) throw new Conflict("USER_DELETION_IN_PROGRESS");
-        if (email != null && users.values().stream().anyMatch(u -> !u.id().equals(id) && u.email().equalsIgnoreCase(email))) throw new Conflict("EMAIL_EXISTS");
-        UserDomain.User next = new UserDomain.User(id, email == null ? old.email() : email.toLowerCase(Locale.ROOT), first == null ? old.firstName() : first, last == null ? old.lastName() : last, role == null ? old.role() : role, status == null ? old.status() : status, old.createdAt());
+        if (email != null && users.values().stream().anyMatch(u -> !u.id().equals(id) && u.email().equalsIgnoreCase(email))) {
+            throw new Conflict("EMAIL_EXISTS");
+        }
+        // A patch changes only the fields it carries.
+        UserDomain.User next = new UserDomain.User(id,
+                email == null ? old.email() : email.toLowerCase(Locale.ROOT),
+                first == null ? old.firstName() : first,
+                last == null ? old.lastName() : last,
+                role == null ? old.role() : role,
+                status == null ? old.status() : status,
+                old.createdAt());
         if (old.role() == Role.ADMIN && old.status() == UserDomain.Status.ACTIVE
                 && (next.role() != Role.ADMIN || next.status() != UserDomain.Status.ACTIVE)
                 && activeAdminCount() <= 1)
             throw new Conflict("LAST_ADMIN");
         if (!old.email().equals(next.email()) || old.role() != next.role() || old.status() != next.status()) {
-            try { provisioning.update(id, next.email(), next.role().name(), next.status() == UserDomain.Status.ACTIVE); }
-            catch (RuntimeException ex) { throw new Conflict("AUTH_UPDATE_FAILED"); }
+            try {
+                provisioning.update(id, next.email(), next.role().name(), next.status() == UserDomain.Status.ACTIVE);
+            } catch (RuntimeException ex) {
+                throw new Conflict("AUTH_UPDATE_FAILED");
+            }
         }
         if (jdbc != null && jdbc.update("update users set email=?,first_name=?,last_name=?,role=?,status=? "
                 + "where id=? and deletion_stage is null", next.email(), next.firstName(), next.lastName(),
-                next.role().name(), next.status().name(), id) == 0) throw new Conflict("USER_DELETION_IN_PROGRESS");
-        users.put(id, next); return next;
+                next.role().name(), next.status().name(), id) == 0) {
+            throw new Conflict("USER_DELETION_IN_PROGRESS");
+        }
+        users.put(id, next);
+        return next;
     }
-    public synchronized UserDomain.Traveler createTraveler(UUID userId, String passport, String nationality) { if (!activeForPayment(userId)) throw new Conflict("USER_NOT_ACTIVE"); UserDomain.Traveler t = new UserDomain.Traveler(UUID.randomUUID(), userId, passport, nationality, Instant.now()); if (jdbc != null && jdbc.update("insert into travelers(id,user_id,passport_number,nationality,created_at) "
-            + "select ?,id,?,?,? from users where id=? and status='ACTIVE' and deletion_stage is null for update",
-            t.id(), t.passportNumber(), t.nationality(), Timestamp.from(t.createdAt()), userId) == 0)
-            throw new Conflict("USER_NOT_ACTIVE"); travelers.put(t.id(), t); return t; }
+
+    /** A profile can only be added to an active account that is not being deleted. */
+    public synchronized UserDomain.Traveler createTraveler(UUID userId, String passport, String nationality) {
+        if (!activeForPayment(userId)) throw new Conflict("USER_NOT_ACTIVE");
+        UserDomain.Traveler traveler = new UserDomain.Traveler(UUID.randomUUID(), userId, passport, nationality, Instant.now());
+        if (jdbc != null && jdbc.update("insert into travelers(id,user_id,passport_number,nationality,created_at) "
+                + "select ?,id,?,?,? from users where id=? and status='ACTIVE' and deletion_stage is null for update",
+                traveler.id(), traveler.passportNumber(), traveler.nationality(), Timestamp.from(traveler.createdAt()), userId) == 0) {
+            throw new Conflict("USER_NOT_ACTIVE");
+        }
+        travelers.put(traveler.id(), traveler);
+        return traveler;
+    }
     public List<UserDomain.Traveler> travelers(UUID userId) {
         if (jdbc != null) {
             String sql = "select id,user_id,passport_number,nationality,created_at from travelers"
@@ -236,7 +267,9 @@ public class UserStore {
             if (found.isEmpty()) throw new NotFound();
             return found.getFirst();
         }
-        UserDomain.Traveler t = travelers.get(id); if (t == null) throw new NotFound(); return t;
+        UserDomain.Traveler traveler = travelers.get(id);
+        if (traveler == null) throw new NotFound();
+        return traveler;
     }
 
     private static UserDomain.Traveler traveler(java.sql.ResultSet r) throws java.sql.SQLException {

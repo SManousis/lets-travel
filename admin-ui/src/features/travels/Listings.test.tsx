@@ -102,3 +102,39 @@ it("lets admins choose the organiser of a new travel from active travel managers
     .toEqual(["Choose a travel manager", "Mia Manager (mia@example.com)"]);
   expect(screen.getByRole("heading", { name: "Destinations" })).toBeInTheDocument();
 });
+
+it("locks the booked terms of a travel that travelers have booked, and keeps the rest editable", async () => {
+  const user = userEvent.setup();
+  const booked = { ...draft, status: "PUBLISHED", participantCount: 2, remainingCapacity: 8,
+    stops: [{ id: "s1", destinationId: "d1", position: 0, arrivalDate: null, departureDate: null }] };
+  const saved: unknown[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
+    const path = String(input);
+    if (path === "/api/travels?page=0&size=10") return json({ items: [booked], page: 0, size: 10, total: 1 });
+    if (path === "/api/destinations?page=0&size=100") {
+      return json({ items: [{ id: "d1", name: "Rome", country: "Italy", createdAt: "" }], page: 0, size: 100, total: 1 });
+    }
+    if (path === "/api/travels/t1" && (options?.method ?? "GET") === "GET") return json(booked);
+    if (path === "/api/travels/t1" && options?.method === "PUT") {
+      saved.push(JSON.parse(String(options.body)));
+      return json({ code: "TRAVEL_HAS_SUBSCRIBERS", message: "Booked" }, 409);
+    }
+    throw new Error(`Unexpected request: ${options?.method ?? "GET"} ${path}`);
+  }));
+
+  render(<ListingsPanel context={context} />);
+  await user.click(await screen.findByRole("button", { name: "Edit Rome in spring" }));
+  expect(await screen.findByText(/2 places are booked/)).toBeInTheDocument();
+  for (const field of ["Start date", "End date", "Price per traveler", "Currency", "Time zone"]) {
+    expect(screen.getByLabelText(field)).toBeDisabled();
+  }
+  expect(screen.getByLabelText("Places")).toBeEnabled();
+  expect(screen.getByLabelText("Places")).toHaveAttribute("min", "2");
+  expect(screen.getByLabelText("Description")).toBeEnabled();
+
+  await user.type(screen.getByLabelText("Description"), " with a wine tasting");
+  await user.click(screen.getByRole("button", { name: "Save travel" }));
+  expect(saved[0]).toMatchObject({ startDate: "2027-04-01", endDate: "2027-04-05", price: "450", currency: "EUR",
+    description: "Walks and food with a wine tasting" });
+  expect(await screen.findByRole("alert")).toHaveTextContent("Travelers have booked this travel");
+});
