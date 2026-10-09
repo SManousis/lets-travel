@@ -52,11 +52,14 @@ export function travelPayload(draft: TravelDraft) {
     transports: draft.transports };
 }
 
-export function ItineraryEditor({ draft, onChange, destinations, onSubmit, onCancel, busy, error, managers }:
+export function ItineraryEditor({ draft, onChange, destinations, onSubmit, onCancel, busy, error, managers, booked = 0 }:
   { draft: TravelDraft; onChange: (next: TravelDraft) => void; destinations: Destination[];
     onSubmit: (event: React.FormEvent) => void; onCancel: () => void; busy: boolean; error: string;
     /** Only admins choose the organiser; managers always own what they create. */
-    managers?: { id: string; name: string }[] }) {
+    managers?: { id: string; name: string }[];
+    /** Places already taken. Once travelers have booked, the terms they paid for stay fixed (docs/roles.md). */
+    booked?: number }) {
+  const locked = booked > 0;
   function updateRow<K extends "stops" | "activities" | "accommodations" | "transports">(
     key: K, index: number, value: TravelDraft[K][number]) {
     const rows = [...draft[key]] as Array<TravelDraft[K][number]>;
@@ -78,17 +81,20 @@ export function ItineraryEditor({ draft, onChange, destinations, onSubmit, onCan
     {error && <Message kind="error">{error}</Message>}
     <div className="field-grid columns">
       <label>Travel name<input required value={draft.name} onChange={event => onChange({ ...draft, name: event.target.value })} /></label>
-      <label>Start date<input required type="date" value={draft.startDate} onChange={event => onChange({ ...draft, startDate: event.target.value })} /></label>
-      <label>End date<input required type="date" min={draft.startDate || undefined} value={draft.endDate} onChange={event => onChange({ ...draft, endDate: event.target.value })} /></label>
-      <label>Places<input required type="number" min="1" step="1" value={draft.capacity} onChange={event => onChange({ ...draft, capacity: event.target.value })} /></label>
-      <label>Price per traveler<input required type="number" min="0" step="0.01" value={draft.price} onChange={event => onChange({ ...draft, price: event.target.value })} /></label>
-      <label>Currency<input required pattern="[A-Za-z]{3}" maxLength={3} value={draft.currency} onChange={event => onChange({ ...draft, currency: event.target.value })} /></label>
-      <label>Time zone<input maxLength={64} value={draft.timeZone} placeholder="Europe/Athens" onChange={event => onChange({ ...draft, timeZone: event.target.value })} /></label>
+      <label>Start date<input required type="date" disabled={locked} aria-describedby={locked ? "booked-terms" : undefined} value={draft.startDate} onChange={event => onChange({ ...draft, startDate: event.target.value })} /></label>
+      <label>End date<input required type="date" disabled={locked} aria-describedby={locked ? "booked-terms" : undefined} min={draft.startDate || undefined} value={draft.endDate} onChange={event => onChange({ ...draft, endDate: event.target.value })} /></label>
+      <label>Places<input required type="number" min={Math.max(1, booked)} step="1" value={draft.capacity} onChange={event => onChange({ ...draft, capacity: event.target.value })} /></label>
+      <label>Price per traveler<input required type="number" disabled={locked} aria-describedby={locked ? "booked-terms" : undefined} min="0" step="0.01" value={draft.price} onChange={event => onChange({ ...draft, price: event.target.value })} /></label>
+      <label>Currency<input required disabled={locked} aria-describedby={locked ? "booked-terms" : undefined} pattern="[A-Za-z]{3}" maxLength={3} value={draft.currency} onChange={event => onChange({ ...draft, currency: event.target.value })} /></label>
+      <label>Time zone<input disabled={locked} aria-describedby={locked ? "booked-terms" : undefined} maxLength={64} value={draft.timeZone} placeholder="Europe/Athens" onChange={event => onChange({ ...draft, timeZone: event.target.value })} /></label>
       {managers && <label>Organiser<select required value={draft.managerId} onChange={event => onChange({ ...draft, managerId: event.target.value })}>
         <option value="">Choose a travel manager</option>
         {managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}
       </select></label>}
     </div>
+    {locked && <Message kind="info"><span id="booked-terms">{`${booked} ${booked === 1 ? "place is" : "places are"} booked, so the dates, `
+      + `price, currency and time zone travelers paid for can no longer change. You can still add places (at least ${booked}) `
+      + "and update the description and itinerary details."}</span></Message>}
     <label className="wide-field">Description<textarea required maxLength={4000} value={draft.description}
       onChange={event => onChange({ ...draft, description: event.target.value })} /></label>
     <div className="subsection-heading"><h4>Destination stops</h4>

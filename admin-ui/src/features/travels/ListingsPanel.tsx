@@ -21,6 +21,7 @@ export function listingError(error: unknown): string {
     case "TRAVEL_NOT_EDITABLE": return "A cancelled travel can no longer be changed.";
     case "MANAGER_REQUIRED": return "Choose the travel manager who organises this travel.";
     case "MANAGER_NOT_ACTIVE": return "That travel manager's account is not active.";
+    case "TRAVEL_HAS_SUBSCRIBERS": return "Travelers have booked this travel, so its dates, price, currency and time zone can no longer change.";
     default: return error.message;
   }
 }
@@ -31,7 +32,7 @@ export function listingError(error: unknown): string {
  */
 export function ListingsPanel({ context, admin = false }: { context: ApiContext; admin?: boolean }) {
   const [page, setPage] = React.useState(0);
-  const [editing, setEditing] = React.useState<{ id: string | null; draft: TravelDraft } | null>(null);
+  const [editing, setEditing] = React.useState<{ id: string | null; draft: TravelDraft; booked: number } | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
@@ -68,7 +69,7 @@ export function ListingsPanel({ context, admin = false }: { context: ApiContext;
     setError(""); setNotice("");
     try {
       const latest = await api<Travel>(context, `/api/travels/${travel.id}`);
-      setEditing({ id: latest.id, draft: fromTravel(latest) });
+      setEditing({ id: latest.id, draft: fromTravel(latest), booked: latest.participantCount });
     } catch (caught) { setError(listingError(caught)); }
   }
 
@@ -91,7 +92,7 @@ export function ListingsPanel({ context, admin = false }: { context: ApiContext;
         <div className="actions">
           <button type="button" onClick={reloadList}>Refresh</button>
           <button type="button" className="primary" disabled={busy || editing?.id === null}
-            onClick={() => { setError(""); setNotice(""); setEditing({ id: null, draft: blankTravel() }); }}>New travel</button>
+            onClick={() => { setError(""); setNotice(""); setEditing({ id: null, draft: blankTravel(), booked: 0 }); }}>New travel</button>
         </div></div>
       {notice && <Message kind="success">{notice}</Message>}
       {error && !editing && <Message kind="error">{error}</Message>}
@@ -124,7 +125,7 @@ export function ListingsPanel({ context, admin = false }: { context: ApiContext;
       <h3 id="listing-editor-title">{editing.id ? `Edit ${editing.draft.name}` : "New travel"}</h3>
       <Loaded resource={destinations} retry={reloadDestinations} label="destinations">{found =>
         <ItineraryEditor draft={editing.draft} onChange={draft => setEditing({ ...editing, draft })} destinations={found}
-          managers={editing.id ? undefined : managerChoices} busy={busy} error={error}
+          managers={editing.id ? undefined : managerChoices} booked={editing.booked} busy={busy} error={error}
           onSubmit={event => void save(event)} onCancel={() => { setEditing(null); setError(""); }} />}</Loaded>
     </section>}
     {admin && <DestinationsEditor context={context} onChanged={reloadDestinations} />}
